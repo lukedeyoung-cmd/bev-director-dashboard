@@ -1,6 +1,6 @@
 """Toast API client for one restaurant: machine-client auth, throttle, pagination.
 
-Verified against the live API (2026-10, Oliver's dev credential):
+Verified against a live Toast tenant during development (2026-10):
 
 - Auth: POST {host}/authentication/v1/authentication/login with
   {clientId, clientSecret, userAccessType: "TOAST_MACHINE_CLIENT"}; the

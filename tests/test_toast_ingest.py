@@ -47,8 +47,8 @@ class StubToastClient:
 @pytest.fixture()
 def venue(app):  # the app fixture provides a fresh DB per test
     venue = Venue(
-        name="Olivers (dev-only)",
-        code="OLV-DEV",
+        name="Fixture Bar (dev)",
+        code="FIX-DEV",
         pos_venue_ref="rest-guid",
         timezone="America/Chicago",
     )
@@ -92,7 +92,7 @@ def test_sync_catalog_creates_and_is_idempotent(venue):
 
 
 def test_get_venue_by_code_and_pos_ref_filter(venue):
-    assert get_venue_by_code("OLV-DEV").id == venue.id
+    assert get_venue_by_code("FIX-DEV").id == venue.id
     with pytest.raises(LookupError):
         get_venue_by_code("NOPE")
     assert venues_with_pos_refs() == [venue]

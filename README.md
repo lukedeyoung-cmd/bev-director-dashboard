@@ -127,22 +127,22 @@ Toast data lands in the same schema the dashboard reads: `pos_items` (catalog) a
 - `TOAST_BACKFILL_DAYS` (default 365) — default depth when `toast-backfill` is
   run without `--start`.
 
-> **Dev credential note:** current end-to-end verification uses a dev-only venue
-> credential (Olivers), clearly labeled dev-only in the database. Production
-> L&SD credentials replace them by environment/venue-config change only — no
-> code changes.
+> **Credentials note:** all live inputs come from L&SD's own Toast machine
+> client (one org client, per-venue GUIDs) and R365 once granted. This project
+> never ingests data from any venue outside Land & Sea Dept.; demo data is the
+> synthetic fixture set only.
 
 ### Operating the pipeline
 
 ```bash
 # One venue's catalog (menus v2 + config v2)
-flask --app wsgi:app toast-sync-catalog --venue OLV
+flask --app wsgi:app toast-sync-catalog --venue VENUE1
 
 # One venue, one business date (default: previous day in venue tz)
-flask --app wsgi:app toast-sync-sales --venue OLV --business-date 2026-10-29
+flask --app wsgi:app toast-sync-sales --venue VENUE1 --business-date 2026-01-15
 
 # Historical backfill (re-runnable; failed dates are skipped and reported)
-flask --app wsgi:app toast-backfill --venue OLV --start 2025-11-01 --end 2026-10-30
+flask --app wsgi:app toast-backfill --venue VENUE1 --start 2026-01-01 --end 2026-01-31
 
 # Nightly job across every connected venue (catalog + yesterday)
 scripts/nightly_toast_sync.sh
@@ -167,8 +167,7 @@ rollover, e.g. `15 6 * * *` America/Chicago (see
 
 Foundation complete: bootable app, auth, health/venues API, 15-table schema with a
 verified initial migration, tests, and CI. Toast POS ingestion (catalog + sales,
-backfill, nightly sync) is implemented and dev-verified end-to-end against a
-dev-only Olivers credential: a full-year backfill (2025-10-31 → 2026-10-29) landed
-30k+ `daily_sales` rows across 300 trading days with zero negative-net rows, and
-the nightly wrapper runs clean. Sales/cost/purchasing/inventory modules and R365
-ingestion are next.
+backfill, nightly sync) is implemented and covered by fixture-based tests; live
+API behavior was validated once against a Toast tenant during development, and no
+third-party data remains in this project or its database. Sales/cost/purchasing/
+inventory modules and R365 ingestion are next.
