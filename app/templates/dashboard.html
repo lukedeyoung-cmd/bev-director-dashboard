@@ -1,0 +1,58 @@
+{% extends "base.html" %}
+{% block title %}Group overview{% endblock %}
+{% block content %}
+<div class="page-head">
+  <h1 class="page-title">Group overview</h1>
+  <p class="text-muted">Land &amp; Sea Dept · beverage program</p>
+</div>
+
+<section class="section">
+  <h2 class="section-title">Venues</h2>
+  {% if venues %}
+  <div class="card table-card">
+    <table class="table">
+      <thead>
+        <tr><th>Name</th><th>Code</th><th>POS link</th><th>Status</th></tr>
+      </thead>
+      <tbody>
+        {% for venue in venues %}
+        <tr>
+          <td>{{ venue.name }}</td>
+          <td><span class="badge">{{ venue.code }}</span></td>
+          <td>
+            {% if venue.pos_venue_ref %}
+              <span class="badge badge-success">Connected</span>
+            {% else %}
+              <span class="badge badge-warning">Pending</span>
+            {% endif %}
+          </td>
+          <td>{% if venue.is_active %}Active{% else %}Inactive{% endif %}</td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+  {% else %}
+  <div class="card empty-state">
+    <p><strong>No venues yet.</strong></p>
+    <p class="text-muted">Venues appear here once the Toast connection is authorized for each L&amp;SD location.</p>
+  </div>
+  {% endif %}
+</section>
+
+<section class="section">
+  <h2 class="section-title">Modules</h2>
+  <div class="module-grid">
+    {% for module in modules %}
+    <div class="card card-hover module-card">
+      <div class="flex items-center justify-between gap-2">
+        <h3 class="module-title">{{ module.title }}</h3>
+        <span class="badge">{{ module.source }}</span>
+      </div>
+      <p class="text-sm text-muted">{{ module.description }}</p>
+      <p class="text-xs text-muted module-status">Pending data source</p>
+    </div>
+    {% endfor %}
+  </div>
+</section>
+{% endblock %}

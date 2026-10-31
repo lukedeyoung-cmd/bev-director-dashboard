@@ -1,0 +1,183 @@
+/* App-specific layout on top of the design-system tokens in styles.css. */
+
+.topbar {
+  background-color: var(--surface-primary);
+  box-shadow: var(--shadow-lifted);
+}
+
+.topbar-inner {
+  display: flex;
+  align-items: center;
+  gap: var(--space-6);
+  height: 56px;
+}
+
+.brand {
+  font-weight: 700;
+  color: var(--text-primary);
+  letter-spacing: -0.01em;
+}
+
+.brand:hover {
+  color: var(--text-primary);
+}
+
+.brand-sub {
+  font-weight: 500;
+  color: var(--text-tertiary);
+}
+
+.nav {
+  display: flex;
+  gap: var(--space-4);
+  flex: 1;
+}
+
+.nav a {
+  color: var(--text-secondary);
+  font-size: 14px;
+  padding: var(--space-1) var(--space-2);
+  border-radius: var(--radius-sm);
+}
+
+.nav a.active,
+.nav a:hover {
+  color: var(--text-primary);
+  background-color: var(--surface-hover);
+}
+
+.user-area {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+}
+
+.user-email {
+  font-size: 13px;
+  color: var(--text-tertiary);
+}
+
+.logout-form {
+  display: inline-flex;
+}
+
+.page {
+  padding: var(--space-6) 0 var(--space-12);
+}
+
+.page-head {
+  margin-bottom: var(--space-6);
+}
+
+.page-title {
+  font-size: 28px;
+}
+
+.section {
+  margin-bottom: var(--space-8);
+}
+
+.section-title {
+  font-size: 18px;
+  margin-bottom: var(--space-3);
+}
+
+.table-card {
+  padding: 0;
+  overflow-x: auto;
+}
+
+.table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 14px;
+}
+
+.table th,
+.table td {
+  text-align: left;
+  padding: var(--space-3) var(--space-4);
+  border-bottom: 1px solid var(--border-subtle);
+}
+
+.table th {
+  color: var(--text-tertiary);
+  font-weight: 500;
+  font-size: 12px;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+.table tr:last-child td {
+  border-bottom: none;
+}
+
+.empty-state {
+  text-align: center;
+  padding: var(--space-10) var(--space-6);
+}
+
+.module-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
+  gap: var(--space-4);
+}
+
+.module-title {
+  font-size: 16px;
+}
+
+.module-status {
+  margin-top: var(--space-2);
+}
+
+/* Login */
+
+.login-wrap {
+  display: flex;
+  justify-content: center;
+  padding-top: var(--space-12);
+}
+
+.login-card {
+  width: 100%;
+  max-width: 400px;
+  padding: var(--space-8);
+}
+
+.login-title {
+  font-size: 24px;
+  margin-bottom: var(--space-1);
+}
+
+.login-sub {
+  margin-bottom: var(--space-6);
+  font-size: 14px;
+}
+
+.field {
+  margin-bottom: var(--space-4);
+}
+
+.field-label {
+  display: block;
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--text-secondary);
+  margin-bottom: var(--space-1);
+}
+
+.field-error {
+  margin-top: var(--space-1);
+  font-size: 12px;
+  color: var(--red-700);
+}
+
+.login-btn {
+  width: 100%;
+  margin-top: var(--space-2);
+}
+
+.alert {
+  margin-bottom: var(--space-4);
+}
