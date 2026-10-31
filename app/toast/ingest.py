@@ -19,7 +19,7 @@ from decimal import Decimal
 import sqlalchemy as sa
 
 from app.extensions import db
-from app.models import DailySales, PosItem, Venue
+from app.models import DailySales, DailyVenueTotals, PosItem, Venue
 from app.toast.client import ToastClient
 from app.toast.transforms import (
     MENU_ITEM,
@@ -53,6 +53,7 @@ class SalesSyncResult:
     business_date: date
     orders_seen: int = 0
     orders_voided: int = 0
+    checks_seen: int = 0
     selections_seen: int = 0
     selections_voided: int = 0
     open_items_without_guid: int = 0
@@ -215,6 +216,19 @@ def sync_business_date(
                     net_sales=aggregate.net_sales,
                 )
             )
+        db.session.execute(
+            sa.delete(DailyVenueTotals).where(
+                DailyVenueTotals.venue_id == venue.id,
+                DailyVenueTotals.business_date == business_date,
+            )
+        )
+        db.session.add(
+            DailyVenueTotals(
+                venue_id=venue.id,
+                business_date=business_date,
+                check_count=stats.checks_seen,
+            )
+        )
         db.session.commit()
     except Exception:
         db.session.rollback()
@@ -224,6 +238,7 @@ def sync_business_date(
         business_date=business_date,
         orders_seen=stats.orders_seen,
         orders_voided=stats.orders_voided,
+        checks_seen=stats.checks_seen,
         selections_seen=stats.selections_seen,
         selections_voided=stats.selections_voided,
         open_items_without_guid=stats.open_items_without_guid,

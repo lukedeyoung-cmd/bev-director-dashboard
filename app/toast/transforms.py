@@ -134,6 +134,9 @@ class AggregationStats:
 
     orders_seen: int = 0
     orders_voided: int = 0
+    # Non-voided checks containing at least one non-voided selection — the
+    # digest's cover count (persisted as daily_venue_totals.check_count).
+    checks_seen: int = 0
     selections_seen: int = 0
     selections_voided: int = 0
     open_items_without_guid: int = 0

@@ -42,7 +42,8 @@ def _toast_credentials(app) -> tuple[str, str]:
 def _echo_sales_result(result) -> None:
     click.echo(
         f"  {result.business_date}: orders={result.orders_seen} "
-        f"(voided {result.orders_voided}), selections={result.selections_seen} "
+        f"(voided {result.orders_voided}), checks={result.checks_seen}, "
+        f"selections={result.selections_seen} "
         f"(voided {result.selections_voided}), items_created={result.items_created}, "
         f"daily_sales rows={result.rows_written}"
     )
@@ -215,3 +216,30 @@ def register_cli(app) -> None:
                 f"{len(failed_venues)} venue(s) failed: {', '.join(failed_venues)}"
             )
         click.echo(f"toast-sync complete for {len(venues)} venue(s).")
+
+    @app.cli.command("send-digest")
+    @click.option(
+        "--business-date",
+        "business_date_str",
+        default=None,
+        help="YYYY-MM-DD (default: newest business date present in sales data).",
+    )
+    def send_digest(business_date_str: str | None) -> None:
+        """Build and send the morning digest email (schedule: 7:00 AM CT).
+
+        Cron path — scripts/morning_digest.sh runs this daily. Manual trigger:
+        POST /api/digest/send (session + CSRF) or this command on demand.
+        """
+        from app.digest import DigestError, send_morning_digest
+
+        business_date = (
+            _parse_date(business_date_str, "--business-date") if business_date_str else None
+        )
+        try:
+            summary = send_morning_digest(app, business_date=business_date)
+        except DigestError as exc:
+            raise click.ClickException(str(exc)) from exc
+        click.echo(
+            f"Digest sent: {summary['subject']} -> {summary['recipients']} recipient(s), "
+            f"{summary['venues']} venue(s), {summary['alerts']} alert(s)."
+        )

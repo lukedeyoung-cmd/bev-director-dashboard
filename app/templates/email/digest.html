@@ -1,0 +1,240 @@
+<!DOCTYPE html>
+<html lang="en" xmlns="http://www.w3.org/1999/xhtml">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="color-scheme" content="light">
+<title>L&SD Beverage Digest</title>
+<style>
+  @media only screen and (max-width: 640px) {
+    .container { width: 100% !important; }
+    .kpi-cell { display: block !important; width: 50% !important; }
+    .pad { padding-left: 16px !important; padding-right: 16px !important; }
+    .table td, .table th { font-size: 12px !important; padding: 6px 6px !important; }
+    .btn { display: block !important; width: auto !important; }
+  }
+</style>
+</head>
+<body style="margin:0; padding:0; background:#f4f4f5; -webkit-text-size-adjust:100%;">
+<div style="display:none; max-height:0; overflow:hidden; mso-hide:all;">Yesterday by venue, trailing trends, and alerts.</div>
+<table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="background:#f4f4f5;">
+<tr>
+<td align="center" style="padding:24px 8px;">
+
+<table role="presentation" class="container" width="640" cellpadding="0" cellspacing="0" border="0"
+       style="width:640px; max-width:640px; background:#ffffff; border-radius:12px; overflow:hidden;
+              font-family:Inter,-apple-system,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;">
+
+  {# ---------- header ---------- #}
+  <tr>
+    <td class="pad" style="padding:28px 32px 20px 32px; border-bottom:1px solid #ededed;">
+      <div style="font-size:18px; font-weight:700; color:#171717; letter-spacing:-0.01em;">
+        L&amp;SD Beverage Digest
+      </div>
+      <div style="font-size:13px; color:#6b7280; margin-top:4px;">
+        {% if data.business_date %}Business date: <strong style="color:#374151;">{{ data.business_date.strftime("%A, %B %d") }}</strong>{% endif %}
+      </div>
+    </td>
+  </tr>
+
+  {# ---------- group KPIs ---------- #}
+  <tr>
+    <td class="pad" style="padding:20px 32px 4px 32px;">
+      <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0">
+        <tr>
+          <td class="kpi-cell" width="25%" style="padding:8px 12px 12px 0;">
+            <div style="font-size:11px; text-transform:uppercase; letter-spacing:0.06em; color:#6b7280;">Group net sales</div>
+            <div style="font-size:22px; font-weight:700; color:#171717;">{{ data.group_net|money }}</div>
+          </td>
+          <td class="kpi-cell" width="25%" style="padding:8px 12px 12px 0;">
+            <div style="font-size:11px; text-transform:uppercase; letter-spacing:0.06em; color:#6b7280;">Covers</div>
+            <div style="font-size:22px; font-weight:700; color:#171717;">
+              {% if data.group_covers is not none %}{{ data.group_covers }}{% else %}-{% endif %}
+            </div>
+          </td>
+          <td class="kpi-cell" width="25%" style="padding:8px 12px 12px 0;">
+            <div style="font-size:11px; text-transform:uppercase; letter-spacing:0.06em; color:#6b7280;">Avg check</div>
+            <div style="font-size:22px; font-weight:700; color:#171717;">{{ data.group_avg_check|money_cents }}</div>
+          </td>
+          <td class="kpi-cell" width="25%" style="padding:8px 0 12px 0;">
+            <div style="font-size:11px; text-transform:uppercase; letter-spacing:0.06em; color:#6b7280;">Voids &amp; comps</div>
+            <div style="font-size:22px; font-weight:700; color:#171717;">{{ data.group_void_comp_rate|pct_plain }}</div>
+          </td>
+        </tr>
+      </table>
+    </td>
+  </tr>
+
+  {# ---------- yesterday by venue ---------- #}
+  <tr>
+    <td class="pad" style="padding:12px 32px 8px 32px;">
+      <div style="font-size:14px; font-weight:700; color:#171717; margin-bottom:8px;">Yesterday by venue</div>
+      {% if data.venues %}
+      <table role="presentation" class="table" width="100%" cellpadding="0" cellspacing="0" border="0"
+             style="border-collapse:collapse; font-size:13px;">
+        <tr style="color:#6b7280; text-align:left; border-bottom:1px solid #ededed;">
+          <th style="padding:6px 8px; font-weight:600;">Venue</th>
+          <th style="padding:6px 8px; font-weight:600; text-align:right;">Net sales</th>
+          <th style="padding:6px 8px; font-weight:600; text-align:right;">Covers</th>
+          <th style="padding:6px 8px; font-weight:600; text-align:right;">Avg check</th>
+          <th style="padding:6px 8px; font-weight:600; text-align:right;">Voids/comps</th>
+        </tr>
+        {% for venue in data.venues %}
+        <tr style="border-bottom:1px solid #f4f4f5;">
+          <td style="padding:8px; color:#171717; font-weight:600;">
+            {{ venue.name }} <span style="color:#9ca3af; font-weight:400;">{{ venue.code }}</span>
+          </td>
+          <td style="padding:8px; text-align:right; color:#171717;">
+            {{ venue.net_sales|money }}
+            {% if venue.change_pct is not none %}
+              <div style="font-size:11px; color:{{ '#15803d' if venue.change_pct >= 0 else '#b91c1c' }};">
+                {{ venue.change_pct|pct }} vs prior day
+              </div>
+            {% endif %}
+          </td>
+          <td style="padding:8px; text-align:right; color:#374151;">
+            {% if venue.covers is not none %}{{ venue.covers }}{% else %}-{% endif %}
+          </td>
+          <td style="padding:8px; text-align:right; color:#374151;">{{ venue.avg_check|money_cents }}</td>
+          <td style="padding:8px; text-align:right; color:#374151;">
+            {{ venue.void_comp_total|money }}
+            <div style="font-size:11px; color:#9ca3af;">{{ venue.void_comp_rate|pct_plain }}</div>
+          </td>
+        </tr>
+        {% endfor %}
+      </table>
+      {% else %}
+      <div style="padding:12px 8px; font-size:13px; color:#6b7280;">No venue activity for this date.</div>
+      {% endif %}
+    </td>
+  </tr>
+
+  {# ---------- top movers ---------- #}
+  {% if data.movers_up or data.movers_down %}
+  <tr>
+    <td class="pad" style="padding:12px 32px 8px 32px;">
+      <div style="font-size:14px; font-weight:700; color:#171717; margin-bottom:8px;">
+        Top movers <span style="font-weight:400; color:#9ca3af;">(yesterday vs prior day)</span>
+      </div>
+      <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="font-size:13px;">
+        {% for mover in data.movers_up %}
+        <tr>
+          <td style="padding:3px 8px; color:#171717;">
+            <span style="color:#15803d; font-weight:700;">&#9650;</span>
+            {{ mover.item_name }}
+            <span style="color:#9ca3af;">{{ mover.venue_code }}</span>
+          </td>
+          <td style="padding:3px 8px; text-align:right; color:#15803d; font-weight:600; white-space:nowrap;">
+            {{ mover.delta|money_signed }}
+          </td>
+        </tr>
+        {% endfor %}
+        {% for mover in data.movers_down %}
+        <tr>
+          <td style="padding:3px 8px; color:#171717;">
+            <span style="color:#b91c1c; font-weight:700;">&#9660;</span>
+            {{ mover.item_name }}
+            <span style="color:#9ca3af;">{{ mover.venue_code }}</span>
+          </td>
+          <td style="padding:3px 8px; text-align:right; color:#b91c1c; font-weight:600; white-space:nowrap;">
+            {{ mover.delta|money_signed }}
+          </td>
+        </tr>
+        {% endfor %}
+      </table>
+    </td>
+  </tr>
+  {% endif %}
+
+  {# ---------- trailing trends ---------- #}
+  <tr>
+    <td class="pad" style="padding:16px 32px 8px 32px;">
+      <div style="font-size:14px; font-weight:700; color:#171717; margin-bottom:8px;">Trailing trends</div>
+      <table role="presentation" class="table" width="100%" cellpadding="0" cellspacing="0" border="0"
+             style="border-collapse:collapse; font-size:13px;">
+        <tr style="color:#6b7280; text-align:left; border-bottom:1px solid #ededed;">
+          <th style="padding:6px 8px; font-weight:600;">Window</th>
+          <th style="padding:6px 8px; font-weight:600; text-align:right;">Net sales</th>
+          <th style="padding:6px 8px; font-weight:600; text-align:right;">Mix</th>
+          <th style="padding:6px 8px; font-weight:600; text-align:right;">COGS%</th>
+        </tr>
+        {% for row in data.trends %}
+        <tr style="border-bottom:1px solid #f4f4f5;">
+          <td style="padding:8px; color:#171717; font-weight:600;">{{ row.label }}</td>
+          <td style="padding:8px; text-align:right; color:#171717;">
+            {{ row.net_sales|money }}
+            {% if row.change_pct is not none %}
+              <div style="font-size:11px; color:{{ '#15803d' if row.change_pct >= 0 else '#b91c1c' }};">
+                {{ row.change_pct|pct }} vs prior window
+              </div>
+            {% endif %}
+          </td>
+          <td style="padding:8px; text-align:right; color:#374151;">
+            {% if row.mix %}{{ row.mix_text }}{% else %}-{% endif %}
+          </td>
+          <td style="padding:8px; text-align:right; color:#374151;">{{ row.cogs_pct|pct_plain }}</td>
+        </tr>
+        {% endfor %}
+      </table>
+      {% if not data.cost_data_present %}
+      <div style="font-size:11px; color:#9ca3af; padding-top:6px;">
+        COGS% fills in once cost (invoice) data lands — sales and mix are live now.
+      </div>
+      {% endif %}
+    </td>
+  </tr>
+
+  {# ---------- alerts ---------- #}
+  <tr>
+    <td class="pad" style="padding:16px 32px 8px 32px;">
+      <div style="font-size:14px; font-weight:700; color:#171717; margin-bottom:8px;">Alerts</div>
+      {% if data.alerts %}
+        <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="font-size:13px;">
+          {% for alert in data.alerts %}
+          <tr>
+            <td style="padding:6px 8px; border-left:3px solid #f97316; background:#fff7ed; border-radius:4px;
+                       color:#7c2d12; margin-bottom:4px;">
+              <span style="font-weight:700; text-transform:uppercase; font-size:11px; letter-spacing:0.04em;">
+                {{ alert.display_label }}
+              </span><br>
+              {{ alert.message }}
+            </td>
+          </tr>
+          {% endfor %}
+        </table>
+      {% else %}
+        <div style="padding:8px; font-size:13px; color:#6b7280;">No anomalies flagged.</div>
+        {% if not data.cost_data_present %}
+        <div style="padding:0 8px; font-size:11px; color:#9ca3af;">
+          Pour-variance, price-change, and inventory alerts activate once cost data lands.
+        </div>
+        {% endif %}
+      {% endif %}
+    </td>
+  </tr>
+
+  {# ---------- footer ---------- #}
+  <tr>
+    <td class="pad" style="padding:24px 32px 28px 32px; border-top:1px solid #ededed;">
+      {% if data.dashboard_url %}
+      <a class="btn" href="{{ data.dashboard_url }}"
+         style="display:inline-block; background:#171717; color:#ffffff; text-decoration:none;
+                padding:10px 20px; border-radius:8px; font-size:13px; font-weight:600;">
+        Open the dashboard
+      </a>
+      {% endif %}
+      <div style="font-size:11px; color:#9ca3af; padding-top:12px; line-height:1.5;">
+        Covers = non-voided checks with at least one item. Sales are pre-tax beverage dollars.<br>
+        Generated {{ generated_at.strftime("%B %d at %I:%M %p %Z") }} &middot;
+        sent daily at 7:00&nbsp;AM Central by the L&amp;SD Beverage Director Dashboard.
+      </div>
+    </td>
+  </tr>
+
+</table>
+
+</td>
+</tr>
+</table>
+</body>
+</html>

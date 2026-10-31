@@ -39,3 +39,23 @@ class Config:
     TOAST_TIMEOUT_SECONDS = float(os.environ.get("TOAST_TIMEOUT_SECONDS", "30"))
     # Default depth for the historical sales backfill (CLI --start overrides).
     TOAST_BACKFILL_DAYS = int(os.environ.get("TOAST_BACKFILL_DAYS", "365"))
+
+    # --- SendGrid digest email ---------------------------------------------
+    # Daily 07:00 America/Chicago via scripts/morning_digest.sh (cron) or the
+    # manual trigger POST /api/digest/send. The From address must be a verified
+    # sender in the SendGrid account.
+    SENDGRID_API_KEY = os.environ.get("SENDGRID_API_KEY")
+    DIGEST_FROM_EMAIL = os.environ.get("DIGEST_FROM_EMAIL", "luke.deyoung@gmail.com")
+    DIGEST_RECIPIENTS = [
+        entry.strip()
+        for entry in os.environ.get("DIGEST_RECIPIENTS", "luke.deyoung@gmail.com").split(",")
+        if entry.strip()
+    ]
+    DIGEST_TIMEZONE = os.environ.get("DIGEST_TIMEZONE", "America/Chicago")
+    # Placeholder until hosting lands; the email renders whatever is configured.
+    DASHBOARD_URL = os.environ.get("DASHBOARD_URL", "https://bev-director-dashboard.example")
+    # Alert sensitivity (see app/digest/builder.py).
+    DIGEST_SWING_PCT = float(os.environ.get("DIGEST_SWING_PCT", "40"))
+    DIGEST_SWING_FLOOR = os.environ.get("DIGEST_SWING_FLOOR", "200")
+    DIGEST_VARIANCE_PCT = float(os.environ.get("DIGEST_VARIANCE_PCT", "10"))
+    DIGEST_PRICE_PCT = float(os.environ.get("DIGEST_PRICE_PCT", "10"))
