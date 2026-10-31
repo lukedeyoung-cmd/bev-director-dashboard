@@ -214,7 +214,7 @@ def test_comp_exceeding_gross_never_nets_negative():
 
 
 def test_mixed_selection_and_check_discounts_never_go_negative():
-    # Real-world shape (observed on a comped Olivers check): a selection-level
+    # Real-world shape (observed on a comped check from a live tenant): a selection-level
     # comp larger than the line's gross while a check-level discount also
     # applies. The pool must respect capacity the line's own discount already
     # consumed instead of double-capping it.

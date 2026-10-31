@@ -1,6 +1,6 @@
 """Pure transforms from Toast API payloads into ingest records.
 
-Money model (validated against a real Oliver's business date, 2026-10-29):
+Money model (validated against a live tenant's business date, 2026-10-29):
 - gross = quantity x preDiscountPrice (falls back to price when Toast omits
   preDiscountPrice), per non-voided selection and per modifier line.
 - discount = the line's own appliedDiscounts[].discountAmount (comps land in
