@@ -30,7 +30,7 @@ export SECRET_KEY="$(python3 -c 'import secrets; print(secrets.token_urlsafe(32)
 .venv/bin/flask --app wsgi:app run --debug
 ```
 
-- A local PostgreSQL 17 with role/db `bev` / `bev` (password `bev-dev-password`)
+- A local PostgreSQL 17 with role/db `bev` / `bev` (password `bev`)
   exists in the sandbox for verification.
 - `SECRET_KEY` is required — `create_app` raises without it.
 - For local plain-HTTP, set `SESSION_COOKIE_SECURE=false` (`.flaskenv` default).

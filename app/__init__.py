@@ -22,11 +22,13 @@ def create_app(config_class: type = Config) -> Flask:
     from app.api.routes import api_bp
     from app.auth.routes import auth_bp
     from app.cli import register_cli
+    from app.web import filters as web_filters
     from app.web.routes import web_bp
 
     app.register_blueprint(auth_bp)
     app.register_blueprint(web_bp)
     app.register_blueprint(api_bp, url_prefix="/api")
+    web_filters.register_filters(app)
     register_cli(app)
 
     return app

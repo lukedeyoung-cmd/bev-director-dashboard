@@ -1,0 +1,64 @@
+{% extends "base.html" %}
+{% from "_macros.html" import fmt_date, range_pills, kpi_cards, mix_card, trend_card, mover_list, discount_table, venue_selector %}
+{% block title %}{{ venue.name }}{% endblock %}
+{% block content %}
+<div class="page-head dash-head">
+  <div>
+    <h1 class="page-title"><a class="venue-link" href="{{ url_for('web.dashboard') }}">Group overview</a> <span class="crumb-sep">/</span> {{ venue.name }}</h1>
+    <p class="text-muted">
+      <span class="badge">{{ venue.code }}</span>
+      {% if venue.pos_venue_ref %}<span class="badge badge-success">Toast connected</span>{% else %}<span class="badge badge-warning">POS pending</span>{% endif %}
+    </p>
+  </div>
+  <div class="dash-controls">
+    {{ venue_selector(venues, venue.id, True) }}
+    {% if data.has_data %}
+    <div class="range-pills" aria-label="Reporting window">
+      {% for option in (7, 14, 28) %}
+      <a class="pill{{ ' is-active' if option == data.days }}" href="{{ url_for('web.venue_detail', venue_id=venue.id, days=option) }}">{{ option }} days</a>
+      {% endfor %}
+    </div>
+    {% endif %}
+  </div>
+</div>
+
+{% if not data.has_data %}
+<div class="card empty-state">
+  <p><strong>No sales data yet for {{ venue.name }}.</strong></p>
+  <p class="text-muted">Daily sales appear here once this venue's Toast connection is ingesting.</p>
+</div>
+{% else %}
+<section class="section">
+  <div class="section-head">
+    <h2 class="section-title">
+      {{ fmt_date(data.window.current.start) }} – {{ fmt_date(data.window.current.end) }}
+      <span class="text-muted text-sm">vs {{ fmt_date(data.window.prior.start) }} – {{ fmt_date(data.window.prior.end) }}</span>
+    </h2>
+  </div>
+  {{ kpi_cards(data) }}
+</section>
+
+<section class="section dash-grid">
+  {{ trend_card(data) }}
+  {{ mix_card(data) }}
+</section>
+
+<section class="section dash-grid-3">
+  <div class="card chart-card">
+    <div class="card-head"><h2 class="card-title">Top movers</h2><span class="text-xs text-muted">net sales vs prior {{ data.days }} days</span></div>
+    {{ mover_list(data.top_movers, "No increases vs prior period.") }}
+  </div>
+  <div class="card chart-card">
+    <div class="card-head"><h2 class="card-title">Bottom movers</h2><span class="text-xs text-muted">net sales vs prior {{ data.days }} days</span></div>
+    {{ mover_list(data.bottom_movers, "No declines vs prior period.") }}
+  </div>
+  <div class="card chart-card">
+    <div class="card-head">
+      <h2 class="card-title">Voids &amp; comps watch</h2>
+      <span class="text-xs text-muted" title="At the daily-aggregate grain, comps and void value surface as discount totals; order-level reasons arrive with order-grain Toast data.">discount activity</span>
+    </div>
+    {{ discount_table(data.discounts) }}
+  </div>
+</section>
+{% endif %}
+{% endblock %}
