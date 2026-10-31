@@ -9,6 +9,10 @@ from app.models.user import User
 
 
 def register_cli(app) -> None:
+    from app.fixtures import register_fixture_commands
+
+    register_fixture_commands(app)
+
     @app.cli.command("create-admin")
     @click.option("--email", required=True, help="Login email for the new admin.")
     @click.option("--name", required=True, help="Display name.")

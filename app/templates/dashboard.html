@@ -1,58 +1,63 @@
 {% extends "base.html" %}
+{% from "_macros.html" import fmt_date, range_pills, kpi_cards, mix_card, trend_card, rankings_table, mover_list, discount_table, venue_selector %}
 {% block title %}Group overview{% endblock %}
 {% block content %}
-<div class="page-head">
-  <h1 class="page-title">Group overview</h1>
-  <p class="text-muted">Land &amp; Sea Dept · beverage program</p>
+<div class="page-head dash-head">
+  <div>
+    <h1 class="page-title">Group overview</h1>
+    <p class="text-muted">Land &amp; Sea Dept · beverage program</p>
+  </div>
+  <div class="dash-controls">
+    {{ venue_selector(venues, None, True) }}
+    {{ range_pills(data) }}
+  </div>
 </div>
 
+{% if not data.has_data %}
+<div class="card empty-state">
+  <p><strong>No sales data yet.</strong></p>
+  <p class="text-muted">
+    Once the Toast connection ingests daily sales, numbers appear here
+    anchored to the newest business date. For development fixtures, run
+    <code>flask --app wsgi:app seed-fixtures</code>.
+  </p>
+</div>
+{% else %}
 <section class="section">
-  <h2 class="section-title">Venues</h2>
-  {% if venues %}
-  <div class="card table-card">
-    <table class="table">
-      <thead>
-        <tr><th>Name</th><th>Code</th><th>POS link</th><th>Status</th></tr>
-      </thead>
-      <tbody>
-        {% for venue in venues %}
-        <tr>
-          <td>{{ venue.name }}</td>
-          <td><span class="badge">{{ venue.code }}</span></td>
-          <td>
-            {% if venue.pos_venue_ref %}
-              <span class="badge badge-success">Connected</span>
-            {% else %}
-              <span class="badge badge-warning">Pending</span>
-            {% endif %}
-          </td>
-          <td>{% if venue.is_active %}Active{% else %}Inactive{% endif %}</td>
-        </tr>
-        {% endfor %}
-      </tbody>
-    </table>
+  <div class="section-head">
+    <h2 class="section-title">
+      All venues · {{ fmt_date(data.window.current.start) }} – {{ fmt_date(data.window.current.end) }}
+    </h2>
   </div>
-  {% else %}
-  <div class="card empty-state">
-    <p><strong>No venues yet.</strong></p>
-    <p class="text-muted">Venues appear here once the Toast connection is authorized for each L&amp;SD location.</p>
-  </div>
-  {% endif %}
+  {{ kpi_cards(data) }}
+</section>
+
+<section class="section dash-grid">
+  {{ trend_card(data) }}
+  {{ mix_card(data) }}
 </section>
 
 <section class="section">
-  <h2 class="section-title">Modules</h2>
-  <div class="module-grid">
-    {% for module in modules %}
-    <div class="card card-hover module-card">
-      <div class="flex items-center justify-between gap-2">
-        <h3 class="module-title">{{ module.title }}</h3>
-        <span class="badge">{{ module.source }}</span>
-      </div>
-      <p class="text-sm text-muted">{{ module.description }}</p>
-      <p class="text-xs text-muted module-status">Pending data source</p>
+  <h2 class="section-title">Venue ranking</h2>
+  {{ rankings_table(data.rankings) }}
+</section>
+
+<section class="section dash-grid-3">
+  <div class="card chart-card">
+    <div class="card-head"><h2 class="card-title">Top movers</h2><span class="text-xs text-muted">net sales vs prior {{ data.days }} days</span></div>
+    {{ mover_list(data.top_movers, "No increases vs prior period.") }}
+  </div>
+  <div class="card chart-card">
+    <div class="card-head"><h2 class="card-title">Bottom movers</h2><span class="text-xs text-muted">net sales vs prior {{ data.days }} days</span></div>
+    {{ mover_list(data.bottom_movers, "No declines vs prior period.") }}
+  </div>
+  <div class="card chart-card">
+    <div class="card-head">
+      <h2 class="card-title">Voids &amp; comps watch</h2>
+      <span class="text-xs text-muted" title="At the daily-aggregate grain, comps and void value surface as discount totals; order-level reasons arrive with order-grain Toast data.">discount activity</span>
     </div>
-    {% endfor %}
+    {{ discount_table(data.discounts) }}
   </div>
 </section>
+{% endif %}
 {% endblock %}

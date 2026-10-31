@@ -1,0 +1,192 @@
+{% macro fmt_date(d) %}{{ d.strftime("%b") }} {{ d.day }}{% endmacro %}
+
+{% macro range_pills(data) %}
+{% if data.range_links %}
+<div class="range-pills" aria-label="Reporting window">
+  {% for option, url, active in data.range_links %}
+  <a class="pill{{ ' is-active' if active }}" href="{{ url }}">{{ option }} days</a>
+  {% endfor %}
+</div>
+{% endif %}
+{% endmacro %}
+
+{% macro kpi_cards(data) %}
+<div class="kpi-grid">
+  <div class="card kpi">
+    <div class="kpi-label">Bev sales · net</div>
+    <div class="kpi-value">{{ data.summary.net_sales|money }}</div>
+    <div class="kpi-sub">
+      {% if data.summary.net_change_pct is not none %}
+      <span class="delta {{ 'delta-up' if data.summary.net_change_pct >= 0 else 'delta-down' }}">{{ data.summary.net_change_pct|pct }}</span>
+      vs prior {{ data.days }} days
+      {% else %}no prior-period data{% endif %}
+    </div>
+  </div>
+  {% if data.cost and data.cost.cogs_pct is not none %}
+  <div class="card kpi" title="Beverage invoice cost (actual) ÷ beverage net sales, this window">
+    <div class="kpi-label">Bev COGS%</div>
+    <div class="kpi-value">{{ data.cost.cogs_pct|pct_plain }}</div>
+    <div class="kpi-sub">actual cost {{ data.cost.actual_cost|money }}{% if data.cost.partial_coverage %} · costed venues only{% endif %}</div>
+  </div>
+  {% endif %}
+  {% if data.cost and data.cost.pour_cost_pct is not none %}
+  <div class="card kpi" title="Theoretical cost of what was poured ÷ beverage net sales">
+    <div class="kpi-label">Pour cost</div>
+    <div class="kpi-value">{{ data.cost.pour_cost_pct|pct_plain }}</div>
+    <div class="kpi-sub">theoretical cost {{ data.cost.theoretical_cost|money }}</div>
+  </div>
+  {% endif %}
+  {% if data.cost and data.cost.variance_dollars is not none %}
+  <div class="card kpi" title="Actual invoice cost − theoretical cost of what was poured; positive means cost ran over">
+    <div class="kpi-label">Variance (A − T)</div>
+    <div class="kpi-value {{ 'variance-bad' if data.cost.variance_dollars > 0 else 'variance-good' }}">
+      {{ data.cost.variance_dollars|money_signed_cents }}
+    </div>
+    <div class="kpi-sub">{{ 'over theoretical' if data.cost.variance_dollars > 0 else 'under theoretical' }}</div>
+  </div>
+  {% endif %}
+  {% if data.cost is none %}
+  <div class="card kpi kpi-pending" title="Cost KPIs appear once R365 invoice and recipe-mapping data is ingested">
+    <div class="kpi-label">Bev COGS% · Pour cost · Variance</div>
+    <div class="kpi-value">—</div>
+    <div class="kpi-sub">Cost KPIs pending R365 connection</div>
+  </div>
+  {% endif %}
+</div>
+{% endmacro %}
+
+{% macro mix_card(data) %}
+<div class="card chart-card">
+  <div class="card-head">
+    <h2 class="card-title">Category mix</h2>
+    <span class="text-xs text-muted">share of net sales</span>
+  </div>
+  {% if data.mix %}
+  {{ data.mix_svg|safe }}{# server-built SVG, escaped in the builder #}
+  <ul class="mix-legend">
+    {% for slice_ in data.mix %}
+    <li>
+      <span class="dot dot-{{ slice_.bucket }}"></span>
+      <span class="mix-label">{{ slice_.label }}</span>
+      <span class="mix-amount">{{ slice_.net_sales|money }}</span>
+      <span class="mix-share">{{ (slice_.share * 100)|pct_plain }}</span>
+    </li>
+    {% endfor %}
+  </ul>
+  {% else %}
+  <p class="text-muted">No category data for this window.</p>
+  {% endif %}
+</div>
+{% endmacro %}
+
+{% macro trend_card(data) %}
+<div class="card chart-card">
+  <div class="card-head">
+    <h2 class="card-title">Sales trend by day</h2>
+    <span class="chart-legend">
+      <span class="legend-swatch legend-current"></span>Current
+      <span class="legend-swatch legend-prior"></span>Prior period
+    </span>
+  </div>
+  {% if data.trend_svg %}
+  {{ data.trend_svg|safe }}{# server-built SVG, escaped in the builder #}
+  {% else %}
+  <p class="text-muted">No sales in this window.</p>
+  {% endif %}
+</div>
+{% endmacro %}
+
+{% macro rankings_table(rankings) %}
+{% if rankings %}
+<div class="card table-card">
+  <table class="table">
+    <thead>
+      <tr><th>Venue</th><th class="num">Net sales</th><th class="num">Share</th><th class="num">vs prior</th><th>Top category</th></tr>
+    </thead>
+    <tbody>
+      {% for r in rankings %}
+      <tr>
+        <td><a class="venue-link" href="{{ url_for('web.venue_detail', venue_id=r.venue_id) }}">{{ r.name }}</a> <span class="badge">{{ r.code }}</span></td>
+        <td class="num">{{ r.net_sales|money }}</td>
+        <td class="num">{{ (r.share * 100)|pct_plain }}</td>
+        <td class="num">
+          {% if r.change_pct is not none %}
+          <span class="delta {{ 'delta-up' if r.change_pct >= 0 else 'delta-down' }}">{{ r.change_pct|pct }}</span>
+          {% else %}<span class="text-muted">new</span>{% endif %}
+        </td>
+        <td>{% if r.top_bucket_label %}<span class="badge">{{ r.top_bucket_label }}</span>{% else %}<span class="text-muted">—</span>{% endif %}</td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</div>
+{% else %}
+<div class="card empty-state"><p class="text-muted">No venue sales in this window.</p></div>
+{% endif %}
+{% endmacro %}
+
+{% macro mover_list(movers, empty_text) %}
+{% if movers %}
+<ul class="mover-list">
+  {% for m in movers %}
+  <li>
+    <div class="mover-item">
+      <span class="mover-name">{{ m.item_name }}</span>
+      <span class="badge">{{ m.venue_code }}</span>
+    </div>
+    <div class="mover-nums">
+      <span class="mover-current">{{ m.current|money }}</span>
+      <span class="delta {{ 'delta-up' if m.delta >= 0 else 'delta-down' }}">{{ m.delta|money_signed }}</span>
+      <span class="text-xs text-muted">{{ m.qty_delta|qty }} units</span>
+    </div>
+  </li>
+  {% endfor %}
+</ul>
+{% else %}
+<p class="text-muted">{{ empty_text }}</p>
+{% endif %}
+{% endmacro %}
+
+{% macro discount_table(rows) %}
+{% if rows %}
+<div class="card table-card">
+  <table class="table">
+    <thead>
+      <tr><th>Item</th><th>Venue</th><th class="num">Discounted gross</th><th class="num">Discounts</th><th class="num">Rate</th></tr>
+    </thead>
+    <tbody>
+      {% for row in rows %}
+      <tr>
+        <td>{{ row.item_name }}</td>
+        <td><span class="badge">{{ row.venue_code }}</span></td>
+        <td class="num">{{ row.gross_sales|money }}</td>
+        <td class="num">{{ row.discount_total|money_cents }}</td>
+        <td class="num">
+          {% if row.rate > 10 %}<span class="badge badge-error">{{ row.rate|pct_plain }}</span>
+          {% elif row.rate > 5 %}<span class="badge badge-warning">{{ row.rate|pct_plain }}</span>
+          {% else %}<span class="badge badge-success">{{ row.rate|pct_plain }}</span>{% endif %}
+        </td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</div>
+{% else %}
+<div class="card empty-state"><p class="text-muted">No discount, comp, or void activity this window.</p></div>
+{% endif %}
+{% endmacro %}
+
+{% macro venue_selector(venues, selected_id, include_group) %}
+<form class="venue-jump" method="get" action="">
+  <label class="field-label" for="venue-jump-select">Venue</label>
+  <select id="venue-jump-select" class="input"
+          onchange="if (this.value) { window.location = this.value; }">
+    {% if include_group %}
+    <option value="{{ url_for('web.dashboard') }}"{{ ' selected' if not selected_id }}>All venues</option>
+    {% endif %}
+    {% for v in venues %}
+    <option value="{{ url_for('web.venue_detail', venue_id=v.id) }}"{{ ' selected' if selected_id == v.id }}>{{ v.name }}</option>
+    {% endfor %}
+  </select>
+</form>
+{% endmacro %}

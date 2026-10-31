@@ -50,6 +50,10 @@ export SESSION_COOKIE_SECURE="true"   # false for plain-HTTP local dev
 # Create the first admin user
 .venv/bin/flask --app wsgi:app create-admin --email you@example.com --name "Your Name"
 
+# Optional: seed clearly-marked synthetic demo data (fx- prefix, not real sales)
+.venv/bin/flask --app wsgi:app seed-fixtures            # skip if fixture venues exist
+.venv/bin/flask --app wsgi:app seed-fixtures --reset    # replace fixture rows
+
 # Run
 .venv/bin/flask --app wsgi:app run --debug          # development
 .venv/bin/gunicorn -w 4 -b 127.0.0.1:8000 wsgi:app  # production-style
