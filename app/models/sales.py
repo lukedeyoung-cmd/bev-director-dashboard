@@ -49,3 +49,29 @@ class DailySales(TimestampMixin, db.Model):
             "venue_id", "business_date", "pos_item_id", name="uq_daily_sales_venue_date_item"
         ),
     )
+
+
+class DailyVenueTotals(TimestampMixin, db.Model):
+    """One row per venue and business date: order-level counts the item-grain
+    rows cannot carry.
+
+    `check_count` is the digest's cover count — the number of non-voided
+    checks that contained at least one non-voided selection. Written by the
+    Toast sales sync in the same transaction as that date's daily_sales rows,
+    so the totals row is always consistent with the item rows it complements.
+    """
+
+    __tablename__ = "daily_venue_totals"
+
+    id: Mapped[uuid.UUID] = mapped_column(sa.Uuid, primary_key=True, default=uuid.uuid4)
+    venue_id: Mapped[uuid.UUID] = mapped_column(
+        sa.Uuid, sa.ForeignKey("venues.id", ondelete="restrict"), nullable=False, index=True
+    )
+    business_date: Mapped[date] = mapped_column(sa.Date, nullable=False, index=True)
+    check_count: Mapped[int] = mapped_column(sa.Integer, nullable=False, default=0)
+
+    __table_args__ = (
+        sa.UniqueConstraint(
+            "venue_id", "business_date", name="uq_daily_venue_totals_venue_date"
+        ),
+    )

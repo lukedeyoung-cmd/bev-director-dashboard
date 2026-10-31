@@ -11,12 +11,13 @@ from app.models.purchasing import (
     Vendor,
 )
 from app.models.recipe import Recipe, RecipeIngredient
-from app.models.sales import DailySales
+from app.models.sales import DailySales, DailyVenueTotals
 from app.models.user import User
 from app.models.venue import Venue
 
 __all__ = [
     "DailySales",
+    "DailyVenueTotals",
     "Ingredient",
     "InventoryCount",
     "InventoryCountLine",
