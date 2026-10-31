@@ -87,7 +87,68 @@ The Alembic environment picks the database from `DATABASE_URL` and falls back to
 ```
 
 The suite covers boot/config, the health endpoint, auth (login/logout/redirects),
-the `create-admin` CLI, and an end-to-end `alembic upgrade head` → all 15 tables check.
+the `create-admin` CLI, an end-to-end `alembic upgrade head` → all 15 tables check,
+and the Toast ingestion pipeline (category classification, client auth/pagination,
+catalog + sales transforms, and idempotent DB upserts).
+
+## Toast ingestion (POS)
+
+Toast data lands in the same schema the dashboard reads: `pos_items` (catalog) and
+`daily_sales` (one row per venue / business date / POS item). The pipeline lives in
+`app/toast/`:
+
+- `client.py` — machine-client auth (`POST /authentication/v1/authentication/login`,
+  `userAccessType: TOAST_MACHINE_CLIENT`), per-request `Toast-Restaurant-External-ID`
+  header, client-side throttling, 429 backoff, 401 re-auth, both pagination styles
+  (numeric pages for orders v2 bulk, `Toast-Next-Page-Token` for config v2).
+- `transforms.py` — pure functions: catalog extraction (menus v2 walks nested
+  menu groups; config v2 fills gaps) and per-check order aggregation (modifiers as
+  their own rows, voided orders/checks/selections excluded, selection-level
+  discounts applied directly, check-level discounts allocated proportionally by
+  line gross, item net floored at zero — comp amounts that include tax are
+  tracked, not silently absorbed).
+- `categories.py` — beverage category heuristics (`cocktail`, `wine`, `beer`,
+  `spirit`, `na`, `food`, `other`) from menu-group path and item name.
+- `ingest.py` — idempotent DB upserts. Catalog: upsert by `(venue_id, pos_guid)`;
+  menus-v2 records are authoritative, config-v2/order-feed records only fill gaps.
+  Sales: one transaction per business date — that date's `daily_sales` rows are
+  replaced on every sync, so any date can be re-synced safely.
+
+### Configuration
+
+- `TOAST_CLIENT_ID` / `TOAST_CLIENT_SECRET` — the org-level Toast machine client
+  (environment only, never the repo).
+- Each venue's Toast restaurant GUID is stored on its `Venue` row
+  (`pos_venue_ref`), set through the admin surface or a migration/seed.
+- `TOAST_BACKFILL_DAYS` (default 365) — default depth when `toast-backfill` is
+  run without `--start`.
+
+> **Dev credential note:** current end-to-end verification uses a dev-only venue
+> credential (Olivers), clearly labeled dev-only in the database. Production
+> L&SD credentials replace them by environment/venue-config change only — no
+> code changes.
+
+### Operating the pipeline
+
+```bash
+# One venue's catalog (menus v2 + config v2)
+flask --app wsgi:app toast-sync-catalog --venue OLV
+
+# One venue, one business date (default: previous day in venue tz)
+flask --app wsgi:app toast-sync-sales --venue OLV --business-date 2026-10-29
+
+# Historical backfill (re-runnable; failed dates are skipped and reported)
+flask --app wsgi:app toast-backfill --venue OLV --start 2025-11-01 --end 2026-10-30
+
+# Nightly job across every connected venue (catalog + yesterday)
+scripts/nightly_toast_sync.sh
+```
+
+`toast-sync` (the nightly job) syncs each venue independently — one venue failing
+never blocks the others — and exits non-zero listing failures so cron alerting
+catches them. Schedule it after closeout and after Toast's business-date
+rollover, e.g. `15 6 * * *` America/Chicago (see
+`scripts/nightly_toast_sync.sh`).
 
 ## Deployment notes
 
@@ -101,5 +162,9 @@ the `create-admin` CLI, and an end-to-end `alembic upgrade head` → all 15 tabl
 ## Status
 
 Foundation complete: bootable app, auth, health/venues API, 15-table schema with a
-verified initial migration, tests, and CI. Sales/cost/purchasing/inventory modules
-and data ingestion (Toast, Restaurant365) are planned next.
+verified initial migration, tests, and CI. Toast POS ingestion (catalog + sales,
+backfill, nightly sync) is implemented and dev-verified end-to-end against a
+dev-only Olivers credential: a full-year backfill (2025-10-31 → 2026-10-29) landed
+30k+ `daily_sales` rows across 300 trading days with zero negative-net rows, and
+the nightly wrapper runs clean. Sales/cost/purchasing/inventory modules and R365
+ingestion are next.

@@ -27,3 +27,15 @@ class Config:
     # Production serves over TLS (nginx); local HTTP dev opts out via env.
     SESSION_COOKIE_SECURE = _env_flag("SESSION_COOKIE_SECURE")
     PERMANENT_SESSION_LIFETIME = 60 * 60 * 12  # 12 hours
+
+    # --- Toast POS integration -------------------------------------------
+    # Org-level machine client; each venue's restaurant GUID is stored on its
+    # Venue row (pos_venue_ref). Rotating to L&SD's own client is a config
+    # change only — nothing in the pipeline reads anything else.
+    TOAST_API_HOST = os.environ.get("TOAST_API_HOST", "https://ws-api.toasttab.com")
+    TOAST_CLIENT_ID = os.environ.get("TOAST_CLIENT_ID")
+    TOAST_CLIENT_SECRET = os.environ.get("TOAST_CLIENT_SECRET")
+    TOAST_REQUESTS_PER_SECOND = float(os.environ.get("TOAST_REQUESTS_PER_SECOND", "4"))
+    TOAST_TIMEOUT_SECONDS = float(os.environ.get("TOAST_TIMEOUT_SECONDS", "30"))
+    # Default depth for the historical sales backfill (CLI --start overrides).
+    TOAST_BACKFILL_DAYS = int(os.environ.get("TOAST_BACKFILL_DAYS", "365"))
