@@ -59,3 +59,14 @@ def resolve_window(
         return None
     current = Period(start=anchor - timedelta(days=days - 1), end=anchor)
     return Window(current=current, prior=current.prior())
+
+
+def last_full_week(anchor: date) -> Period:
+    """The most recent complete Mon–Sun week on or before `anchor`.
+
+    Weeks run Monday–Sunday so Fri/Sat sit intact in one week. An anchor on
+    Monday–Saturday lands in an incomplete week, so the complete week is the
+    one ending the Sunday just passed; an anchor on Sunday ends that week.
+    """
+    week_end = anchor - timedelta(days=(anchor.weekday() + 1) % 7)
+    return Period(start=week_end - timedelta(days=6), end=week_end)

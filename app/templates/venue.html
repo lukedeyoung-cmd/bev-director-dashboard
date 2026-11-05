@@ -1,5 +1,5 @@
 {% extends "base.html" %}
-{% from "_macros.html" import fmt_date, range_pills, kpi_cards, mix_card, trend_card, mover_list, discount_table, venue_selector %}
+{% from "_macros.html" import fmt_date, range_pills, kpi_cards, mix_card, trend_card, mover_list, discount_table, venue_tabs, day_week_cards %}
 {% block title %}{{ venue.name }}{% endblock %}
 {% block content %}
 <div class="page-head dash-head">
@@ -11,7 +11,6 @@
     </p>
   </div>
   <div class="dash-controls">
-    {{ venue_selector(venues, venue.id, True) }}
     {% if data.has_data %}
     <div class="range-pills" aria-label="Reporting window">
       {% for option in (7, 14, 28) %}
@@ -21,6 +20,7 @@
     {% endif %}
   </div>
 </div>
+{{ venue_tabs(venues, venue.id) }}
 
 {% if not data.has_data %}
 <div class="card empty-state">
@@ -38,6 +38,8 @@
   {{ kpi_cards(data) }}
 </section>
 
+{{ day_week_cards(data) }}
+
 <section class="section dash-grid">
   {{ trend_card(data) }}
   {{ mix_card(data) }}
@@ -45,11 +47,11 @@
 
 <section class="section dash-grid-3">
   <div class="card chart-card">
-    <div class="card-head"><h2 class="card-title">Top movers</h2><span class="text-xs text-muted">net sales vs prior {{ data.days }} days</span></div>
+    <div class="card-head"><h2 class="card-title">Top movers</h2><span class="text-xs text-muted">beverage items · net sales vs prior {{ data.days }} days</span></div>
     {{ mover_list(data.top_movers, "No increases vs prior period.") }}
   </div>
   <div class="card chart-card">
-    <div class="card-head"><h2 class="card-title">Bottom movers</h2><span class="text-xs text-muted">net sales vs prior {{ data.days }} days</span></div>
+    <div class="card-head"><h2 class="card-title">Bottom movers</h2><span class="text-xs text-muted">beverage items · net sales vs prior {{ data.days }} days</span></div>
     {{ mover_list(data.bottom_movers, "No declines vs prior period.") }}
   </div>
   <div class="card chart-card">

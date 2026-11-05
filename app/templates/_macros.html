@@ -176,17 +176,43 @@
 {% endif %}
 {% endmacro %}
 
-{% macro venue_selector(venues, selected_id, include_group) %}
-<form class="venue-jump" method="get" action="">
-  <label class="field-label" for="venue-jump-select">Venue</label>
-  <select id="venue-jump-select" class="input"
-          onchange="if (this.value) { window.location = this.value; }">
-    {% if include_group %}
-    <option value="{{ url_for('web.dashboard') }}"{{ ' selected' if not selected_id }}>All venues</option>
-    {% endif %}
-    {% for v in venues %}
-    <option value="{{ url_for('web.venue_detail', venue_id=v.id) }}"{{ ' selected' if selected_id == v.id }}>{{ v.name }}</option>
-    {% endfor %}
-  </select>
-</form>
+{% macro venue_tabs(venues, selected_id) %}
+<nav class="venue-tabs" aria-label="Venues">
+  <a class="pill{{ ' is-active' if not selected_id }}" href="{{ url_for('web.dashboard') }}">All venues</a>
+  {% for v in venues %}
+  <a class="pill{{ ' is-active' if selected_id == v.id }}" href="{{ url_for('web.venue_detail', venue_id=v.id) }}">{{ v.name }}</a>
+  {% endfor %}
+</nav>
+{% endmacro %}
+
+{% macro period_stats_card(title, subtitle, stats) %}
+<div class="card chart-card">
+  <div class="card-head">
+    <h2 class="card-title">{{ title }}</h2>
+    <span class="text-xs text-muted">{{ subtitle }}</span>
+  </div>
+  <div class="stat-rows">
+    <div class="stat-row">
+      <span class="stat-label">Net sales</span>
+      <span class="stat-value">{{ stats.net_sales|money }}</span>
+      {% if stats.net_change_pct is not none %}
+      <span class="delta {{ 'delta-up' if stats.net_change_pct >= 0 else 'delta-down' }}">{{ stats.net_change_pct|pct }}</span>
+      {% else %}<span class="text-xs text-muted">no comparison data</span>{% endif %}
+    </div>
+    <div class="stat-row">
+      <span class="stat-label">Beverage net</span>
+      <span class="stat-value">{{ stats.bev_net_sales|money }}</span>
+      {% if stats.bev_change_pct is not none %}
+      <span class="delta {{ 'delta-up' if stats.bev_change_pct >= 0 else 'delta-down' }}">{{ stats.bev_change_pct|pct }}</span>
+      {% else %}<span class="text-xs text-muted">no comparison data</span>{% endif %}
+    </div>
+  </div>
+</div>
+{% endmacro %}
+
+{% macro day_week_cards(data) %}
+<section class="section dash-grid">
+  {{ period_stats_card("Previous day", fmt_date(data.day_stats.start) ~ " · vs " ~ fmt_date(data.day_stats.prior_start) ~ " same weekday", data.day_stats) }}
+  {{ period_stats_card("Last full week", fmt_date(data.week_stats.start) ~ " – " ~ fmt_date(data.week_stats.end) ~ " · vs prior week", data.week_stats) }}
+</section>
 {% endmacro %}

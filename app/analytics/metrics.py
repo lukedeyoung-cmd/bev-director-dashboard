@@ -45,6 +45,12 @@ INGREDIENT_COST_CATEGORIES = (
     "tea",
 )
 
+# DailySales.category values that count as beverage for item-level analytics
+# (movers, comp/void watch, and the day/week stat cards). "na" is included:
+# fountain sodas, coffee, and energy belong in program tracking. Flip here to
+# change every filtered surface at once — web dashboard and morning digest.
+BEVERAGE_CATEGORIES = ("beer", "wine", "cocktail", "spirit", "na")
+
 
 def category_bucket(category: str | None) -> str:
     """Normalize a free-form category snapshot onto the four mix buckets.
@@ -132,6 +138,78 @@ def sales_summary(session: Session, venue_ids: list[uuid.UUID], period: Period) 
         discount_total=discounts,
         net_sales=net,
         prior_net_sales=prior_net if prior_net != 0 else None,
+    )
+
+
+@dataclass(frozen=True)
+class PeriodStats:
+    """Total and beverage-only net sales for a period vs a comparison period.
+
+    Used for the previous-day and last-full-week cards: beverage-only sums
+    apply the BEVERAGE_CATEGORIES filter, so miscategorized items stay out.
+    """
+
+    start: date
+    end: date
+    prior_start: date | None
+    prior_end: date | None
+    net_sales: Decimal
+    bev_net_sales: Decimal
+    prior_net_sales: Decimal | None
+    prior_bev_net_sales: Decimal | None
+
+    @property
+    def net_change_pct(self) -> float | None:
+        return _change_pct(self.net_sales, self.prior_net_sales)
+
+    @property
+    def bev_change_pct(self) -> float | None:
+        return _change_pct(self.bev_net_sales, self.prior_bev_net_sales)
+
+
+def period_stats(
+    session: Session,
+    venue_ids: list[uuid.UUID],
+    period: Period,
+    prior_period: Period,
+) -> PeriodStats:
+    """Total and beverage-only net sales for `period` vs `prior_period`.
+
+    The caller picks the comparison period explicitly (same weekday last week
+    for the day card, the previous Mon–Sun week for the week card) because
+    Period.prior() only knows about immediately adjacent equal-length windows.
+    """
+
+    def _sums(p: Period) -> tuple[Decimal, Decimal]:
+        total, bev = session.execute(
+            sa.select(
+                sa.func.coalesce(sa.func.sum(DailySales.net_sales), 0),
+                sa.func.coalesce(
+                    sa.func.sum(
+                        sa.case(
+                            (DailySales.category.in_(BEVERAGE_CATEGORIES), DailySales.net_sales),
+                            else_=ZERO,
+                        )
+                    ),
+                    0,
+                ),
+            ).where(
+                _sales_scope(venue_ids), DailySales.business_date.between(p.start, p.end)
+            )
+        ).one()
+        return _dec(total), _dec(bev)
+
+    net, bev = _sums(period)
+    prior_net, prior_bev = _sums(prior_period)
+    return PeriodStats(
+        start=period.start,
+        end=period.end,
+        prior_start=prior_period.start,
+        prior_end=prior_period.end,
+        net_sales=net,
+        bev_net_sales=bev,
+        prior_net_sales=prior_net if prior_net != 0 else None,
+        prior_bev_net_sales=prior_bev if prior_bev != 0 else None,
     )
 
 
@@ -292,8 +370,9 @@ class Mover:
 def item_movers(
     session: Session, venue_ids: list[uuid.UUID], window: Window, limit: int = 5
 ) -> tuple[list[Mover], list[Mover]]:
-    """Items with the largest net-sales increase (top) and decrease (bottom)
-    vs the prior period."""
+    """Beverage items with the largest net-sales increase (top) and decrease
+    (bottom) vs the prior period. Non-beverage categories (food, retail,
+    uncategorized) are excluded — see BEVERAGE_CATEGORIES."""
 
     def _by_item(p: Period) -> dict[uuid.UUID, tuple[Decimal, Decimal]]:
         rows = session.execute(
@@ -302,7 +381,11 @@ def item_movers(
                 sa.func.sum(DailySales.net_sales),
                 sa.func.sum(DailySales.quantity_sold),
             )
-            .where(_sales_scope(venue_ids), DailySales.business_date.between(p.start, p.end))
+            .where(
+                _sales_scope(venue_ids),
+                DailySales.business_date.between(p.start, p.end),
+                DailySales.category.in_(BEVERAGE_CATEGORIES),
+            )
             .group_by(DailySales.pos_item_id)
         ).all()
         return {pid: (_dec(net), _dec(qty)) for pid, net, qty in rows}
@@ -365,9 +448,10 @@ class DiscountRow:
 def discount_watch(
     session: Session, venue_ids: list[uuid.UUID], period: Period, limit: int = 8
 ) -> list[DiscountRow]:
-    """Items carrying the most discount dollars in the period.
+    """Beverage items carrying the most discount dollars in the period.
 
-    At the daily-aggregate grain, comps and void value surface as discount
+    Non-beverage categories are excluded (see BEVERAGE_CATEGORIES). At the
+    daily-aggregate grain, comps and void value surface as discount
     totals; order-level void/comps reasons arrive with order-grain Toast data.
     """
     rows = session.execute(
@@ -381,7 +465,9 @@ def discount_watch(
         .join(PosItem, PosItem.id == DailySales.pos_item_id)
         .join(Venue, Venue.id == DailySales.venue_id)
         .where(
-            _sales_scope(venue_ids), DailySales.business_date.between(period.start, period.end)
+            _sales_scope(venue_ids),
+            DailySales.business_date.between(period.start, period.end),
+            DailySales.category.in_(BEVERAGE_CATEGORIES),
         )
         .group_by(PosItem.name, Venue.code)
         .having(sa.func.sum(DailySales.discount_total) > 0)
@@ -549,11 +635,13 @@ def cost_summary(
 
 
 __all__ = [
+    "BEVERAGE_CATEGORIES",
     "BUCKET_LABELS",
     "CategorySlice",
     "CostSummary",
     "DiscountRow",
     "Mover",
+    "PeriodStats",
     "SalesSummary",
     "TrendPoint",
     "VenueRank",
@@ -563,6 +651,7 @@ __all__ = [
     "daily_trend",
     "discount_watch",
     "item_movers",
+    "period_stats",
     "sales_summary",
     "venue_rankings",
 ]

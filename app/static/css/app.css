@@ -426,3 +426,66 @@
 }
 
 .mover-current { color: var(--text-secondary); }
+
+/* =============================================================================
+   VENUE TABS
+   ============================================================================= */
+
+.venue-tabs {
+  display: flex;
+  gap: var(--space-1);
+  overflow-x: auto;
+  padding-bottom: var(--space-2);
+  margin-bottom: var(--space-4);
+  scrollbar-width: thin;
+}
+
+.venue-tabs .pill {
+  white-space: nowrap;
+  flex-shrink: 0;
+  font-size: 13px;
+  padding: 4px 12px;
+  color: var(--text-secondary);
+  border: 1px solid var(--border-subtle);
+  border-radius: 999px;
+  background-color: var(--surface-primary);
+  text-decoration: none;
+}
+
+.venue-tabs .pill.is-active {
+  background-color: var(--blue-600);
+  border-color: var(--blue-600);
+  color: #fff;
+}
+
+/* =============================================================================
+   PREVIOUS-DAY / LAST-WEEK STAT CARDS
+   ============================================================================= */
+
+.stat-rows {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+}
+
+.stat-row {
+  display: flex;
+  align-items: baseline;
+  gap: var(--space-3);
+}
+
+.stat-row .stat-label {
+  color: var(--text-tertiary);
+  font-size: 13px;
+  min-width: 8rem;
+}
+
+.stat-row .stat-value {
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+}
+
+.stat-row .delta {
+  margin-left: auto;
+  flex-shrink: 0;
+}
