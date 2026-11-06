@@ -40,6 +40,21 @@ class Config:
     # Default depth for the historical sales backfill (CLI --start overrides).
     TOAST_BACKFILL_DAYS = int(os.environ.get("TOAST_BACKFILL_DAYS", "365"))
 
+    # --- Restaurant 365 OData integration --------------------------------
+    # Read-only OData access (Basic auth with the domain-prefixed R365
+    # login — the value is used exactly as stored). One login covers all
+    # L&SD locations; nothing here writes to R365.
+    R365_ODATA_BASE_URL = os.environ.get(
+        "R365_ODATA_BASE_URL", "https://odata.restaurant365.net/api/v2/views"
+    )
+    R365_ODATA_USERNAME = os.environ.get("R365_ODATA_USERNAME")
+    R365_ODATA_PASSWORD = os.environ.get("R365_ODATA_PASSWORD")
+    R365_REQUESTS_PER_SECOND = float(os.environ.get("R365_REQUESTS_PER_SECOND", "2"))
+    R365_TIMEOUT_SECONDS = float(os.environ.get("R365_TIMEOUT_SECONDS", "30"))
+    # R365 advises modest queries; 1000-row pages balance request count
+    # against response size.
+    R365_PAGE_SIZE = int(os.environ.get("R365_PAGE_SIZE", "1000"))
+
     # --- SendGrid digest email ---------------------------------------------
     # Daily 07:00 America/Chicago via scripts/morning_digest.sh (cron) or the
     # manual trigger POST /api/digest/send. The From address must be a verified
