@@ -76,3 +76,43 @@ def digest_preview():
         data, timezone_name=current_app.config.get("DIGEST_TIMEZONE", "America/Chicago")
     )
     return Response(html, mimetype="text/html")
+
+
+
+@api_bp.get("/mapping/coverage")
+@login_required
+def mapping_coverage():
+    """Share of net sales flowing through approved Toast->R365 mappings.
+
+    The trustworthiness signal for variance math: a venue's actual-vs-
+    theoretical numbers are only as complete as its approved-mapping
+    coverage. `venues` lists per-venue totals (with per-category slices);
+    `group` rolls every venue up.
+    """
+    from app.mapping.coverage import coverage_for_venues, group_coverage
+
+    venue_rows = coverage_for_venues(db.session)
+    group = group_coverage(venue_rows)
+
+    def slice_json(slice_):
+        return {
+            "label": slice_.label,
+            "total_net_sales": float(slice_.total_net_sales),
+            "covered_net_sales": float(slice_.covered_net_sales),
+            "coverage_pct": slice_.coverage_pct,
+        }
+
+    return {
+        "group": slice_json(group),
+        "venues": [
+            {
+                "venue_id": str(row.venue_id),
+                "venue_name": row.venue_name,
+                "total_net_sales": float(row.total_net_sales),
+                "covered_net_sales": float(row.covered_net_sales),
+                "coverage_pct": row.coverage_pct,
+                "categories": [slice_json(cat) for cat in row.categories],
+            }
+            for row in venue_rows
+        ],
+    }

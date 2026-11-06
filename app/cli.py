@@ -7,6 +7,7 @@ import sqlalchemy as sa
 from werkzeug.security import generate_password_hash
 
 from app.extensions import db
+from app.mapping import DEFAULT_MIN_CONFIDENCE
 from app.models.user import User
 
 
@@ -351,3 +352,61 @@ def register_cli(app) -> None:
             f"Digest sent: {summary['subject']} -> {summary['recipients']} recipient(s), "
             f"{summary['venues']} venue(s), {summary['alerts']} alert(s)."
         )
+
+
+    # ------------------------------------------------------------------
+    # Toast <-> R365 item mapping
+    # ------------------------------------------------------------------
+    @app.cli.command("map-suggest")
+    @click.option("--venue", "venue_code", default=None, help="Venue code (default: all venues).")
+    @click.option(
+        "--min-confidence",
+        default=DEFAULT_MIN_CONFIDENCE,
+        show_default=True,
+        help="Only suggest pairs scoring at or above this (0..1).",
+    )
+    @click.option(
+        "--dry-run",
+        is_flag=True,
+        default=False,
+        help="Score and report without writing any suggestions.",
+    )
+    def map_suggest(venue_code: str | None, min_confidence: float, dry_run: bool) -> None:
+        """Propose Toast item -> R365 item mappings for human review.
+
+        Writes the best-scoring candidate per active Toast item with status
+        'suggested' — never approves. Review decisions are respected: rejected
+        pairs are not re-proposed and approved mappings are left alone. Run
+        repeatedly; review in the dashboard under Item mapping.
+        """
+        from app.mapping import suggest_mappings
+        from app.models.venue import Venue
+
+        venue_id = None
+        if venue_code:
+            venue = db.session.scalar(sa.select(Venue).where(Venue.code == venue_code))
+            if venue is None:
+                raise click.BadOptionUsage("--venue", f"No venue with code {venue_code!r}.")
+            venue_id = venue.id
+
+        scope = f"venue {venue_code}" if venue_code else "all venues"
+        click.echo(f"Scoring {scope} (min confidence {min_confidence:.2f})...")
+        stats = suggest_mappings(
+            venue_id=venue_id, min_confidence=min_confidence, dry_run=dry_run
+        )
+
+        verb = "would create" if dry_run else "created"
+        click.echo(
+            f"Items considered: {stats.items_considered}\n"
+            f"Suggestions {verb}: {stats.suggestions_created}\n"
+            f"Confidence refreshed: {stats.suggestions_updated}\n"
+            f"Kept existing suggestion: {stats.kept_stale}\n"
+            f"Skipped (already approved): {stats.skipped_approved}\n"
+            f"Skipped (pair rejected by reviewer): {stats.skipped_rejected}\n"
+            f"Unmatched (no candidate at/above threshold): {stats.unmatched}"
+        )
+        click.echo("Confidence distribution of live suggestions:")
+        for label, count in stats.confidence_buckets.items():
+            click.echo(f"  {label}: {count}")
+        if not dry_run:
+            click.echo("Nothing is approved automatically — review in the dashboard.")

@@ -1,0 +1,223 @@
+{% extends "base.html" %}
+{% block title %}Item mapping{% endblock %}
+{% block content %}
+<div class="page-head">
+  <div>
+    <h1 class="page-title">Item mapping</h1>
+    <p class="text-muted">Toast items → R365 items · every pour-cost number flows through these links</p>
+  </div>
+</div>
+
+<section class="section">
+  <div class="card">
+    <div class="card-head">
+      <h2 class="card-title">Approved-mapping coverage</h2>
+      <span class="text-xs text-muted" title="Net sales on items with an approved mapping ÷ all net sales, over all loaded sales data">net sales covered by approved mappings</span>
+    </div>
+    {% if venue_coverage %}
+      <table class="table">
+        <thead>
+          <tr><th>Scope</th><th>Net sales</th><th>Covered</th><th>Coverage</th></tr>
+        </thead>
+        <tbody>
+          {% for row in venue_coverage %}
+          <tr>
+            <td>{{ row.venue_name }}</td>
+            <td>{{ row.total_net_sales|money_cents }}</td>
+            <td>{{ row.covered_net_sales|money_cents }}</td>
+            <td>
+              {% if row.coverage_pct is not none %}
+                <span class="badge {{ 'badge-success' if row.coverage_pct >= 80 else ('badge-warning' if row.coverage_pct >= 40 else 'badge-error') }}">{{ row.coverage_pct|pct_plain }}</span>
+              {% else %}-{% endif %}
+            </td>
+          </tr>
+          {% endfor %}
+          <tr>
+            <td><strong>{{ group.label }}</strong></td>
+            <td><strong>{{ group.total_net_sales|money_cents }}</strong></td>
+            <td><strong>{{ group.covered_net_sales|money_cents }}</strong></td>
+            <td>
+              {% if group.coverage_pct is not none %}
+                <span class="badge {{ 'badge-success' if group.coverage_pct >= 80 else ('badge-warning' if group.coverage_pct >= 40 else 'badge-error') }}">{{ group.coverage_pct|pct_plain }}</span>
+              {% else %}-{% endif %}
+            </td>
+          </tr>
+        </tbody>
+      </table>
+      {% if category_coverage %}
+      <div class="card-head" style="margin-top: 1rem;">
+        <h2 class="card-title">By category</h2>
+      </div>
+      <table class="table">
+        <thead>
+          <tr><th>Category</th><th>Net sales</th><th>Covered</th><th>Coverage</th></tr>
+        </thead>
+        <tbody>
+          {% for row in category_coverage %}
+          <tr>
+            <td>{{ row.label }}</td>
+            <td>{{ row.total_net_sales|money_cents }}</td>
+            <td>{{ row.covered_net_sales|money_cents }}</td>
+            <td>{% if row.coverage_pct is not none %}{{ row.coverage_pct|pct_plain }}{% else %}-{% endif %}</td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+      {% endif %}
+    {% else %}
+      <div class="empty-state">
+        <p><strong>No sales data yet.</strong></p>
+        <p class="text-muted">Coverage appears once Toast sales are ingested.</p>
+      </div>
+    {% endif %}
+  </div>
+</section>
+
+<section class="section">
+  <div class="section-head">
+    <h2 class="section-title">Review queue</h2>
+    <div class="dash-controls">
+      <div class="pills" aria-label="Status filter">
+        {% for s in statuses %}
+        <a class="pill{{ ' is-active' if s == status }}" href="{{ url_for('mapping.review', status=s, venue=venue_filter or none) }}">
+          {{ s|capitalize }}{% if counts.get(s) %} ({{ counts[s] }}){% endif %}
+        </a>
+        {% endfor %}
+      </div>
+      <form method="get" action="{{ url_for('mapping.review') }}" class="flex items-center gap-2">
+        <input type="hidden" name="status" value="{{ status }}">
+        <select name="venue" class="input" onchange="this.form.submit()">
+          <option value="">All venues</option>
+          {% for venue in venues %}
+          <option value="{{ venue.id }}" {{ 'selected' if venue.id|string == venue_filter }}>{{ venue.name }}</option>
+          {% endfor %}
+        </select>
+        <noscript><button type="submit" class="btn btn-ghost btn-sm">Filter</button></noscript>
+      </form>
+    </div>
+  </div>
+
+  {% if rows %}
+  <div class="card table-card">
+    <table class="table">
+      <thead>
+        <tr>
+          <th>Toast item</th>
+          <th>R365 target</th>
+          <th>Confidence</th>
+          <th>Decision</th>
+          <th>Actions</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for mapping, item, venue, target in rows %}
+        <tr>
+          <td>
+            <strong>{{ item.name }}</strong>
+            <div class="text-xs text-muted">{{ venue.code }} · {{ item.item_type|replace('_', ' ') }}{% if item.category %} · {{ item.category }}{% endif %}</div>
+          </td>
+          <td>
+            {% if target %}
+              {{ target.name }}
+              <div class="text-xs text-muted">{{ target.category1 or 'uncategorized' }}{{ ' · ' ~ target.category2 if target.category2 }}</div>
+            {% else %}
+              <span class="badge badge-error">no longer in R365 catalog</span>
+            {% endif %}
+          </td>
+          <td>
+            {% if mapping.confidence is not none %}
+              <span class="badge {{ 'badge-success' if mapping.confidence >= 0.8 else ('badge-warning' if mapping.confidence >= 0.7 else 'badge-error') }}">{{ '%.0f'|format(mapping.confidence * 100) }}%</span>
+            {% else %}<span class="text-xs text-muted">manual</span>{% endif %}
+          </td>
+          <td class="text-xs text-muted">
+            {{ mapping.source }}
+            {% if mapping.decided_at %} · {{ mapping.decided_at.strftime('%b %d') }}{% endif %}
+          </td>
+          <td>
+            <div class="flex items-center gap-2">
+              {% if mapping.status != 'approved' %}
+              <form method="post" action="{{ url_for('mapping.approve', map_id=mapping.id) }}">
+                <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                <input type="hidden" name="next" value="{{ request.full_path }}">
+                <button type="submit" class="btn btn-primary btn-sm">Approve</button>
+              </form>
+              {% endif %}
+              {% if mapping.status != 'rejected' %}
+              <form method="post" action="{{ url_for('mapping.reject', map_id=mapping.id) }}">
+                <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                <input type="hidden" name="next" value="{{ request.full_path }}">
+                <button type="submit" class="btn btn-ghost btn-sm">Reject</button>
+              </form>
+              {% endif %}
+              <form method="get" action="{{ url_for('mapping.review') }}" class="flex items-center gap-2">
+                <input type="hidden" name="status" value="{{ status }}">
+                <input type="hidden" name="venue" value="{{ venue_filter }}">
+                <input type="hidden" name="map_for" value="{{ mapping.id }}">
+                <input type="text" name="q" class="input" placeholder="Search R365…" value="{{ search_query if search_map_id == mapping.id else '' }}">
+                <button type="submit" class="btn btn-ghost btn-sm">Search</button>
+              </form>
+            </div>
+          </td>
+        </tr>
+        {% if search_map_id == mapping.id and search_results is not none %}
+        <tr>
+          <td colspan="5">
+            <div class="text-xs text-muted" style="margin-bottom: .5rem;">
+              {{ search_results|length }} result(s) for “{{ search_query }}” — pick a target for <strong>{{ item.name }}</strong>:
+            </div>
+            {% if search_results %}
+            <div class="flex flex-col gap-2">
+              {% for result in search_results %}
+              <div class="flex items-center justify-between gap-2">
+                <span class="text-sm">{{ result.name }} <span class="text-xs text-muted">{{ result.category1 or '' }}</span></span>
+                <form method="post" action="{{ url_for('mapping.set_mapping') }}">
+                  <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                  <input type="hidden" name="pos_item_id" value="{{ item.id }}">
+                  <input type="hidden" name="r365_item_id" value="{{ result.item_id }}">
+                  <input type="hidden" name="next" value="{{ request.full_path }}">
+                  <button type="submit" class="btn btn-secondary btn-sm">Map to this</button>
+                </form>
+              </div>
+              {% endfor %}
+            </div>
+            {% else %}
+            <p class="text-muted text-sm">No R365 items matched that search.</p>
+            {% endif %}
+          </td>
+        </tr>
+        {% endif %}
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+  {% if pages > 1 %}
+  <div class="pills" style="margin-top: .75rem;" aria-label="Pagination">
+    {% if page > 1 %}<a class="pill" href="{{ url_for('mapping.review', status=status, venue=venue_filter or none, page=page-1) }}">← Prev</a>{% endif %}
+    <span class="pill is-active">Page {{ page }} of {{ pages }}</span>
+    {% if page < pages %}<a class="pill" href="{{ url_for('mapping.review', status=status, venue=venue_filter or none, page=page+1) }}">Next →</a>{% endif %}
+  </div>
+  {% endif %}
+  {% else %}
+  <div class="card empty-state">
+    {% if status == 'suggested' %}
+      <p><strong>No pending suggestions.</strong></p>
+      <p class="text-muted">
+        Run <code>flask --app wsgi:app map-suggest</code> to score the Toast catalog
+        against R365 items. Nothing is ever approved automatically.
+      </p>
+    {% elif status == 'approved' %}
+      <p><strong>No approved mappings yet.</strong></p>
+      <p class="text-muted">Approve suggestions above, or map items by hand from the
+        <a href="{{ url_for('mapping.unmatched') }}">unmatched list</a>.</p>
+    {% elif status == 'rejected' %}
+      <p><strong>No rejected suggestions.</strong></p>
+      <p class="text-muted">Rejected candidates are kept here as a record so the
+        engine never re-proposes them.</p>
+    {% else %}
+      <p><strong>No mappings at all yet.</strong></p>
+      <p class="text-muted">Run <code>flask --app wsgi:app map-suggest</code> to generate suggestions.</p>
+    {% endif %}
+  </div>
+  {% endif %}
+</section>
+{% endblock %}
