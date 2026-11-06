@@ -2,7 +2,7 @@
 
 from app.models.catalog import Ingredient, PosItem
 from app.models.inventory import InventoryCount, InventoryCountLine
-from app.models.mapping import PosItemIngredientMap
+from app.models.mapping import PosItemIngredientMap, ToastItemMap
 from app.models.purchasing import (
     Invoice,
     InvoiceLine,
@@ -41,6 +41,7 @@ __all__ = [
     "R365Vendor",
     "Recipe",
     "RecipeIngredient",
+    "ToastItemMap",
     "User",
     "Vendor",
     "Venue",

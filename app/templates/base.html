@@ -17,6 +17,7 @@
       {% if current_user.is_authenticated %}
       <nav class="nav">
         <a href="{{ url_for('web.dashboard') }}" class="active">Dashboard</a>
+        <a href="{{ url_for('mapping.review') }}">Item mapping</a>
       </nav>
       <div class="user-area">
         <span class="user-email">{{ current_user.email }}</span>
