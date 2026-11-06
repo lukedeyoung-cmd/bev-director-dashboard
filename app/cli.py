@@ -217,6 +217,114 @@ def register_cli(app) -> None:
             )
         click.echo(f"toast-sync complete for {len(venues)} venue(s).")
 
+    # ------------------------------------------------------------------
+    # Restaurant 365 OData ingestion
+    # ------------------------------------------------------------------
+    def _r365_credentials(app) -> tuple[str, str]:
+        """R365 OData settings from config; errors before touching the API."""
+        username = app.config.get("R365_ODATA_USERNAME")
+        password = app.config.get("R365_ODATA_PASSWORD")
+        if not username or not password:
+            raise click.ClickException(
+                "R365_ODATA_USERNAME / R365_ODATA_PASSWORD are required in the "
+                "environment (see .env.example)."
+            )
+        return username, password
+
+    def _r365_client(app):
+        from app.r365 import R365ODataClient
+
+        username, password = _r365_credentials(app)
+        return R365ODataClient(
+            username=username,
+            password=password,
+            base_url=app.config.get("R365_ODATA_BASE_URL"),
+            requests_per_second=app.config.get("R365_REQUESTS_PER_SECOND", 2.0),
+            timeout=app.config.get("R365_TIMEOUT_SECONDS", 30.0),
+            page_size=app.config.get("R365_PAGE_SIZE", 1000),
+        )
+
+    def _echo_sync_result(result) -> None:
+        click.echo(
+            f"  {result.entity}: seen={result.rows_seen} "
+            f"created={result.rows_created} updated={result.rows_updated}"
+        )
+
+    @app.cli.command("r365-sync-reference")
+    def r365_sync_reference() -> None:
+        """Full sync of R365 locations, vendors (Company) and items."""
+        from app.r365 import sync_reference
+
+        results = sync_reference(_r365_client(app))
+        for result in results.values():
+            _echo_sync_result(result)
+
+    @app.cli.command("r365-backfill-history")
+    @click.option("--start", "start_str", default="2025-11-01", help="YYYY-MM-DD (inclusive).")
+    @click.option("--end", "end_str", default="2026-10-31", help="YYYY-MM-DD (inclusive).")
+    @click.option(
+        "--force",
+        is_flag=True,
+        default=False,
+        help="Re-pull months already marked complete (default: skip them).",
+    )
+    def r365_backfill_history(start_str: str, end_str: str, force: bool) -> None:
+        """Month-by-month history load of AP invoices and invoice lines.
+
+        Resumable: completed months recorded in r365_sync_state are skipped,
+        so re-running after a failure only pulls the missing months.
+        """
+        from app.r365 import backfill_history
+
+        start = _parse_date(start_str, "--start")
+        end = _parse_date(end_str, "--end")
+        if start > end:
+            raise click.BadOptionUsage("--start", "--start must not be after --end")
+
+        client = _r365_client(app)
+        click.echo(f"Backfilling R365 history {start} .. {end} (month by month)")
+        outcomes = backfill_history(client, start, end, force=force)
+        for outcome in outcomes.values():
+            if outcome.result is not None:
+                click.echo(f"{outcome.entity}:")
+                _echo_sync_result(outcome.result)
+            if outcome.synced_months:
+                click.echo(f"  synced months: {', '.join(outcome.synced_months)}")
+            if outcome.skipped_months:
+                click.echo(
+                    f"  skipped (already complete): {', '.join(outcome.skipped_months)}"
+                )
+            if outcome.failed_month:
+                click.echo(f"  FAILED {outcome.failed_month}: {outcome.error}", err=True)
+
+        failed = [o for o in outcomes.values() if o.failed_month]
+        if failed:
+            raise click.ClickException(
+                f"{len(failed)} entity/entities stopped on a failed month; "
+                "re-run to resume after the failed month."
+            )
+        click.echo("R365 history backfill complete.")
+
+    @app.cli.command("r365-sync-incremental")
+    @click.option(
+        "--since-days",
+        default=3,
+        show_default=True,
+        help="Fallback look-back when no last-sync checkpoint exists yet.",
+    )
+    def r365_sync_incremental(since_days: int) -> None:
+        """Nightly job: new/edited AP invoices and lines since the last sync.
+
+        Schedule daily (e.g. 04:30 America/Chicago, before the Toast sync)
+        via scripts/nightly_r365_sync.sh.
+        """
+        from app.r365 import sync_incremental
+
+        results = sync_incremental(_r365_client(app), since_days=since_days)
+        for result in results.values():
+            _echo_sync_result(result)
+        click.echo("r365-sync-incremental complete.")
+
     @app.cli.command("send-digest")
     @click.option(
         "--business-date",
