@@ -95,12 +95,16 @@ def _now_utc() -> datetime:
 
 
 def _month_window(year: int, month: int) -> tuple[datetime, datetime]:
-    """UTC [start, end) window for one calendar month (≤31 days)."""
+    """UTC inclusive [start, end] window for one calendar month (≤31 days).
+
+    The server counts filter dates inclusively and rejects spans over 31
+    days, so the end is the month's own last day at 23:59:59 — ending at
+    the first day of the next month would make a 31-day month span 32
+    inclusive days (e.g. Dec: 12-01 .. 01-01) and get a HTTP 400.
+    """
+    last_day = calendar.monthrange(year, month)[1]
     start = datetime(year, month, 1, tzinfo=UTC)
-    if month == 12:
-        end = datetime(year + 1, 1, 1, tzinfo=UTC)
-    else:
-        end = datetime(year, month + 1, 1, tzinfo=UTC)
+    end = datetime(year, month, last_day, 23, 59, 59, tzinfo=UTC)
     return start, end
 
 
@@ -126,10 +130,13 @@ def _odata_stamp(value: datetime) -> str:
     return value.strftime("%Y-%m-%dT%H:%M:%SZ")
 
 
-def _window_filter(window_property: str, start: datetime, end: datetime) -> str:
+def _window_filter(
+    window_property: str, start: datetime, end: datetime, *, inclusive_end: bool = False
+) -> str:
+    end_op = "le" if inclusive_end else "lt"
     return (
         f"{window_property} ge {_odata_stamp(start)} "
-        f"and {window_property} lt {_odata_stamp(end)}"
+        f"and {window_property} {end_op} {_odata_stamp(end)}"
     )
 
 
@@ -258,7 +265,7 @@ def sync_transactions_month(
     start, end = _month_window(year, month)
     params = {
         "$filter": (
-            f"{_window_filter('date', start, end)} "
+            f"{_window_filter('date', start, end, inclusive_end=True)} "
             f"and type eq '{PURCHASE_TRANSACTION_TYPE}'"
         )
     }
@@ -274,13 +281,13 @@ def sync_transactions_month(
 def sync_transaction_details_window(
     client: R365ODataClient, start: datetime, end: datetime
 ) -> SyncResult:
-    """Pull one createdOn window (≤31 days) of TransactionDetail rows."""
+    """Pull one createdOn month window (≤31 days) of TransactionDetail rows."""
     if (end - start).days > MAX_WINDOW_DAYS:
         raise ValueError(
             f"TransactionDetail window must be ≤ {MAX_WINDOW_DAYS} days "
             f"(server rule); got {(end - start).days}"
         )
-    params = {"$filter": _window_filter("createdOn", start, end)}
+    params = {"$filter": _window_filter("createdOn", start, end, inclusive_end=True)}
     result = SyncResult(entity=R365TransactionDetail.__name__)
     for page in _paged_rows(client, "TransactionDetail", params):
         page_result = _replace_details([parse_transaction_detail(row) for row in page])
