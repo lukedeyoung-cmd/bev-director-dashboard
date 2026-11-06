@@ -1,6 +1,7 @@
 """Web UI routes: group rollup and per-venue drill-down."""
 
 import uuid
+from datetime import timedelta
 
 import sqlalchemy as sa
 from flask import Blueprint, abort, redirect, render_template, request, url_for
@@ -12,11 +13,14 @@ from app.analytics import (
     daily_trend,
     discount_watch,
     item_movers,
+    last_full_week,
+    period_stats,
     resolve_window,
     sales_summary,
     venue_rankings,
 )
 from app.analytics.charts import line_chart, mix_bar
+from app.analytics.periods import Period
 from app.extensions import db
 from app.models.venue import Venue
 
@@ -93,6 +97,18 @@ def _build_scope(
     cost = cost_summary(session, venue_ids, window.current)
     top_movers, bottom_movers = item_movers(session, venue_ids, window)
 
+    # Previous-day card: anchor day vs the same weekday one week earlier.
+    anchor = window.current.end
+    day_stats = period_stats(
+        session,
+        venue_ids,
+        Period(start=anchor, end=anchor),
+        Period(start=anchor - timedelta(days=7), end=anchor - timedelta(days=7)),
+    )
+    # Last-complete-week card: most recent full Mon–Sun vs the week before.
+    week = last_full_week(anchor)
+    week_stats = period_stats(session, venue_ids, week, week.prior())
+
     return {
         "has_data": True,
         "days": days,
@@ -108,4 +124,6 @@ def _build_scope(
         "top_movers": top_movers,
         "bottom_movers": bottom_movers,
         "discounts": discount_watch(session, venue_ids, window.current),
+        "day_stats": day_stats,
+        "week_stats": week_stats,
     }

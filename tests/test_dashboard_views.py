@@ -46,6 +46,11 @@ def test_dashboard_renders_fixture_data(client, user, app):
     assert "Venue ranking" in response.text
     assert "Top movers" in response.text
     assert "Voids &amp; comps watch" in response.text
+    # Venue tab bar and previous-day / last-full-week stat cards render.
+    assert "venue-tabs" in response.text
+    assert "Previous day" in response.text
+    assert "Last full week" in response.text
+    assert "Beverage net" in response.text
     # Group scope has cost data (two venues carry invoices) -> cost KPIs live.
     assert "Bev COGS%" in response.text
     assert "Pour cost" in response.text

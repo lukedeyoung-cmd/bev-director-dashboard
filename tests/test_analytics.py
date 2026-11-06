@@ -13,10 +13,12 @@ from app.analytics import (
     daily_trend,
     discount_watch,
     item_movers,
+    period_stats,
     resolve_window,
     sales_summary,
     venue_rankings,
 )
+from app.analytics.periods import Period, last_full_week
 from app.extensions import db
 from app.models.catalog import Ingredient, PosItem
 from app.models.mapping import PosItemIngredientMap
@@ -379,3 +381,140 @@ def test_movers_never_overlap(app, scope):
             "Item 0", "Item 1", "Item 2", "Item 3", "Item 4"
         ]
         assert all(m.delta < 0 for m in bottom)
+
+
+def test_last_full_week_boundaries():
+    # Friday anchor → the Mon–Sun week just completed.
+    assert last_full_week(date(2026, 10, 30)) == Period(date(2026, 10, 19), date(2026, 10, 25))
+    # Sunday anchor ends the week that day.
+    assert last_full_week(date(2026, 10, 25)) == Period(date(2026, 10, 19), date(2026, 10, 25))
+    # Saturday anchor: its own week is incomplete, so the prior Sunday closes it.
+    assert last_full_week(date(2026, 10, 31)) == Period(date(2026, 10, 19), date(2026, 10, 25))
+    # Monday anchor: the week ending yesterday.
+    assert last_full_week(date(2026, 10, 26)) == Period(date(2026, 10, 19), date(2026, 10, 25))
+
+
+def test_period_stats_splits_beverage_from_food(app, scope):
+    with app.app_context():
+        session = db.session
+        fries = PosItem(
+            venue_id=scope["va"].id,
+            pos_guid="g-fries-stats",
+            name="Fries",
+            item_type="menu_item",
+            category="food",
+            unit_price=Decimal("5.00"),
+        )
+        session.add(fries)
+        session.flush()
+        session.add_all(
+            [
+                DailySales(
+                    venue_id=scope["va"].id,
+                    business_date=date(2026, 3, 9),
+                    pos_item_id=fries.id,
+                    category="food",
+                    quantity_sold=Decimal(8),
+                    gross_sales=Decimal("40.00"),
+                    discount_total=Decimal(0),
+                    net_sales=Decimal("40.00"),
+                ),
+                DailySales(
+                    venue_id=scope["va"].id,
+                    business_date=date(2026, 3, 8),
+                    pos_item_id=fries.id,
+                    category="food",
+                    quantity_sold=Decimal(4),
+                    gross_sales=Decimal("20.00"),
+                    discount_total=Decimal(0),
+                    net_sales=Decimal("20.00"),
+                ),
+            ]
+        )
+        session.commit()
+
+        stats = period_stats(
+            session,
+            [scope["va"].id],
+            Period(date(2026, 3, 9), date(2026, 3, 10)),
+            Period(date(2026, 3, 7), date(2026, 3, 8)),
+        )
+        # Total: 276 bev + 40 food now; 64 bev + 20 food prior.
+        assert stats.net_sales == Decimal("316.00")
+        assert stats.bev_net_sales == Decimal("276.00")
+        assert stats.prior_net_sales == Decimal("84.00")
+        assert stats.prior_bev_net_sales == Decimal("64.00")
+        assert stats.net_change_pct == pytest.approx((316 - 84) / 84 * 100)
+        assert stats.bev_change_pct == pytest.approx((276 - 64) / 64 * 100)
+
+
+def test_item_movers_exclude_non_beverage(app, scope):
+    with app.app_context():
+        session = db.session
+        fries = PosItem(
+            venue_id=scope["va"].id,
+            pos_guid="g-fries-movers",
+            name="Fries",
+            item_type="menu_item",
+            category="food",
+            unit_price=Decimal("5.00"),
+        )
+        session.add(fries)
+        session.flush()
+        # +400 would make Fries the single biggest mover on the board.
+        session.add(
+            DailySales(
+                venue_id=scope["va"].id,
+                business_date=date(2026, 3, 10),
+                pos_item_id=fries.id,
+                category="food",
+                quantity_sold=Decimal(80),
+                gross_sales=Decimal("400.00"),
+                discount_total=Decimal(0),
+                net_sales=Decimal("400.00"),
+            )
+        )
+        session.commit()
+
+        window = resolve_window(session, [scope["va"].id], 2)
+        top, bottom = item_movers(session, [scope["va"].id], window)
+        names = [m.item_name for m in top] + [m.item_name for m in bottom]
+        assert names, "expected beverage movers in scope"
+        assert "Fries" not in names
+        assert all(m.delta < Decimal("400") for m in top)
+
+
+def test_discount_watch_excludes_non_beverage(app, scope):
+    with app.app_context():
+        session = db.session
+        fries = PosItem(
+            venue_id=scope["va"].id,
+            pos_guid="g-fries-discount",
+            name="Fries",
+            item_type="menu_item",
+            category="food",
+            unit_price=Decimal("5.00"),
+        )
+        session.add(fries)
+        session.flush()
+        # 20% discount rate, biggest discount dollars in the fixture scope.
+        session.add(
+            DailySales(
+                venue_id=scope["va"].id,
+                business_date=date(2026, 3, 10),
+                pos_item_id=fries.id,
+                category="food",
+                quantity_sold=Decimal(40),
+                gross_sales=Decimal("200.00"),
+                discount_total=Decimal("40.00"),
+                net_sales=Decimal("160.00"),
+            )
+        )
+        session.commit()
+
+        rows = discount_watch(
+            session, [scope["va"].id], Period(date(2026, 3, 9), date(2026, 3, 10))
+        )
+        assert rows, "expected the beverage discount row to survive the filter"
+        assert all(r.item_name != "Fries" for r in rows)
+        assert any(r.item_name == "Old Fashioned" for r in rows)

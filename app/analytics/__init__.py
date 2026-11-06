@@ -1,11 +1,13 @@
 """Analytics layer: window resolution, metric queries, and chart builders."""
 
 from app.analytics.metrics import (
+    BEVERAGE_CATEGORIES,
     BUCKET_LABELS,
     CategorySlice,
     CostSummary,
     DiscountRow,
     Mover,
+    PeriodStats,
     SalesSummary,
     TrendPoint,
     VenueRank,
@@ -15,18 +17,21 @@ from app.analytics.metrics import (
     daily_trend,
     discount_watch,
     item_movers,
+    period_stats,
     sales_summary,
     venue_rankings,
 )
-from app.analytics.periods import Period, Window, resolve_window
+from app.analytics.periods import Period, Window, last_full_week, resolve_window
 
 __all__ = [
+    "BEVERAGE_CATEGORIES",
     "BUCKET_LABELS",
     "CategorySlice",
     "CostSummary",
     "DiscountRow",
     "Mover",
     "Period",
+    "PeriodStats",
     "SalesSummary",
     "TrendPoint",
     "VenueRank",
@@ -37,6 +42,8 @@ __all__ = [
     "daily_trend",
     "discount_watch",
     "item_movers",
+    "last_full_week",
+    "period_stats",
     "resolve_window",
     "sales_summary",
     "venue_rankings",
