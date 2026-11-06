@@ -78,11 +78,34 @@ def reference_stub():
 def test_month_window_bounds():
     start, end = _month_window(2025, 11)
     assert start == datetime(2025, 11, 1, tzinfo=UTC)
-    assert end == datetime(2025, 12, 1, tzinfo=UTC)
+    assert end == datetime(2025, 11, 30, 23, 59, 59, tzinfo=UTC)
     assert _month_end(2025, 11) == date(2025, 11, 30)
 
     start, end = _month_window(2025, 12)  # December rolls the year
-    assert end == datetime(2026, 1, 1, tzinfo=UTC)
+    assert end == datetime(2025, 12, 31, 23, 59, 59, tzinfo=UTC)
+
+
+def test_month_window_span_within_31_day_limit():
+    """Regression: R365 rejects filters spanning more than 31 days.
+
+    Ending a 31-day month at the first day of the next month made the
+    inclusive span 32 days (Dec: 12-01 .. 01-01) → HTTP 400. The window
+    must end on the month's own last day.
+    """
+    for year, month in [
+        (2025, 2),  # 28-day month
+        (2024, 2),  # leap-year February
+        (2025, 4),  # 30-day month
+        (2025, 11),  # 30-day month (previously passing)
+        (2025, 12),  # 31-day month (previously failing)
+        (2025, 1),  # 31-day month
+        (2026, 10),  # backfill end month
+    ]:
+        start, end = _month_window(year, month)
+        assert start == datetime(year, month, 1, tzinfo=UTC)
+        assert end.date() == _month_end(year, month)  # month's own last day
+        span_days = (end.date() - start.date()).days + 1  # inclusive span
+        assert span_days <= 31, f"{year}-{month:02d} spans {span_days} days"
 
 
 def test_incremental_window_fallback_and_head_margin():
@@ -156,7 +179,7 @@ def test_sync_transactions_month_filter(app):
     entity, filter_ = stub.calls[0]
     assert entity == "Transaction"
     assert filter_ == (
-        "date ge 2025-11-01T00:00:00Z and date lt 2025-12-01T00:00:00Z "
+        "date ge 2025-11-01T00:00:00Z and date le 2025-11-30T23:59:59Z "
         "and type eq 'AP Invoice'"
     )
 
