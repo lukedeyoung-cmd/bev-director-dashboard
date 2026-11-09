@@ -269,11 +269,24 @@ def register_cli(app) -> None:
         default=False,
         help="Re-pull months already marked complete (default: skip them).",
     )
-    def r365_backfill_history(start_str: str, end_str: str, force: bool) -> None:
-        """Month-by-month history load of AP invoices and invoice lines.
+    @click.option(
+        "--entities",
+        "entities",
+        multiple=True,
+        type=click.Choice(["R365Transaction", "R365TransactionDetail"]),
+        help="Restrict the backfill to these entities (repeatable; default: both).",
+    )
+    def r365_backfill_history(
+        start_str: str, end_str: str, force: bool, entities: tuple[str, ...]
+    ) -> None:
+        """Month-by-month history load of Transaction headers and detail lines.
 
+        Headers mirror every transaction type (AP invoices, transfers,
+        adjustments, ...); AP-only spend is filtered at query time.
         Resumable: completed months recorded in r365_sync_state are skipped,
         so re-running after a failure only pulls the missing months.
+        Use --entities R365Transaction for a header-only re-pull that leaves
+        the already-complete detail mirror untouched.
         """
         from app.r365 import backfill_history
 
@@ -283,8 +296,11 @@ def register_cli(app) -> None:
             raise click.BadOptionUsage("--start", "--start must not be after --end")
 
         client = _r365_client(app)
-        click.echo(f"Backfilling R365 history {start} .. {end} (month by month)")
-        outcomes = backfill_history(client, start, end, force=force)
+        scope = f", entities: {', '.join(entities)}" if entities else ""
+        click.echo(f"Backfilling R365 history {start} .. {end} (month by month){scope}")
+        outcomes = backfill_history(
+            client, start, end, force=force, entities=entities or None
+        )
         for outcome in outcomes.values():
             if outcome.result is not None:
                 click.echo(f"{outcome.entity}:")
@@ -314,10 +330,11 @@ def register_cli(app) -> None:
         help="Fallback look-back when no last-sync checkpoint exists yet.",
     )
     def r365_sync_incremental(since_days: int) -> None:
-        """Nightly job: new/edited AP invoices and lines since the last sync.
+        """Nightly job: new/edited transactions and lines since the last sync.
 
-        Schedule daily (e.g. 04:30 America/Chicago, before the Toast sync)
-        via scripts/nightly_r365_sync.sh.
+        Headers of every transaction type are mirrored; AP-only spend is
+        filtered at query time. Schedule daily (e.g. 04:30 America/Chicago,
+        before the Toast sync) via scripts/nightly_r365_sync.sh.
         """
         from app.r365 import sync_incremental
 

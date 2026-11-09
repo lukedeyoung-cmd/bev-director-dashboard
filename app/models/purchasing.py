@@ -189,10 +189,11 @@ class R365Item(TimestampMixin, db.Model):
 
 
 class R365Transaction(TimestampMixin, db.Model):
-    """R365 OData Transaction view — AP-invoice headers (type = 'AP Invoice').
+    """R365 OData Transaction view — headers of every transaction type.
 
-    The purchasing sync filters to AP Invoice rows; other transaction types
-    (budget templates, journal entries) stay out of the cost pipeline.
+    The mirror ingests all types so detail lines always join to a header;
+    AP-invoice spend filters at query time via transaction_type
+    (PURCHASE_TRANSACTION_TYPE).
     """
 
     __tablename__ = "r365_transactions"

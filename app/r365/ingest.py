@@ -5,9 +5,13 @@ Modes:
   the view's natural key. Cheap enough to run any time.
 - History backfill: month-by-month (R365's documented recommendation and a
   hard server rule — TransactionDetail rejects windows over 31 days).
-  Transaction rows are pulled by invoice-date month (type = 'AP Invoice');
+  Transaction headers are pulled by invoice-date month for every type
+  (AP invoices, transfers, adjustments, waste, credit memos — AP-only
+  filtering happens at query time via transaction_type);
   TransactionDetail rows by createdOn month. Each completed month is
   recorded in r365_sync_state so re-runs never re-pull completed months.
+  backfill_history(entities=...) scopes a re-pull to a subset of entities
+  (e.g. headers only — the detail mirror is already complete).
 - Incremental: a recent modifiedOn window combined with the stored
   rowVersion checkpoint catches new and edited rows for the nightly job.
 
@@ -26,7 +30,7 @@ from __future__ import annotations
 
 import calendar
 import logging
-from collections.abc import Iterator
+from collections.abc import Iterator, Sequence
 from dataclasses import dataclass, field
 from datetime import UTC, date, datetime, timedelta
 from typing import Any
@@ -44,7 +48,6 @@ from app.models.purchasing import (
 )
 from app.r365.client import R365ODataClient
 from app.r365.transforms import (
-    PURCHASE_TRANSACTION_TYPE,
     parse_item,
     parse_location,
     parse_transaction,
@@ -256,19 +259,18 @@ def sync_reference(client: R365ODataClient) -> dict[str, SyncResult]:
 
 
 # ----------------------------------------------------------------------
-# Transactions (AP invoices) and TransactionDetail
+# Transactions (all types) and TransactionDetail
 # ----------------------------------------------------------------------
 def sync_transactions_month(
     client: R365ODataClient, year: int, month: int
 ) -> SyncResult:
-    """Pull one invoice-date month of AP-invoice headers; upsert by id."""
+    """Pull one invoice-date month of Transaction headers; upsert by id.
+
+    Every transaction type is mirrored (type filtering happens at query
+    time via transaction_type) so detail lines always join to a header.
+    """
     start, end = _month_window(year, month)
-    params = {
-        "$filter": (
-            f"{_window_filter('date', start, end, inclusive_end=True)} "
-            f"and type eq '{PURCHASE_TRANSACTION_TYPE}'"
-        )
-    }
+    params = {"$filter": _window_filter("date", start, end, inclusive_end=True)}
     result = SyncResult(entity=R365Transaction.__name__)
     for page in _paged_rows(client, "Transaction", params):
         page_result = _upsert_by_key(
@@ -318,12 +320,18 @@ def backfill_history(
     end: date,
     *,
     force: bool = False,
+    entities: Sequence[str] | None = None,
 ) -> dict[str, HistoryOutcome]:
     """Month-by-month initial load for [start, end], resumable via sync state.
 
     Transactions sync by invoice-date month; TransactionDetail by createdOn
     month. Completed months are never re-pulled unless force=True. A failed
     month stops that entity's loop so ordering stays honest.
+
+    entities (when given) restricts the pull to those entity names
+    (R365Transaction, R365TransactionDetail) — e.g. a header-only re-pull
+    that leaves the already-complete detail mirror and its sync state
+    untouched.
     """
     months = _iter_months(start, end)
     outcomes: dict[str, HistoryOutcome] = {}
@@ -346,6 +354,9 @@ def backfill_history(
         (R365Transaction.__name__, _sync_history_month_transactions),
         (R365TransactionDetail.__name__, _sync_history_month_details),
     ]
+    if entities is not None:
+        wanted = set(entities)
+        plans = [plan for plan in plans if plan[0] in wanted]
     for entity, month_sync in plans:
         outcome = HistoryOutcome(entity=entity)
         done_through = _history_done_through(entity)
@@ -440,12 +451,7 @@ def _incremental_transactions(
 ) -> SyncResult:
     start, end = _incremental_window(state, since_days, current)
     row_version = state.max_row_version if state is not None else None
-    params = {
-        "$filter": (
-            f"{_window_filter('modifiedOn', start, end)} "
-            f"and type eq '{PURCHASE_TRANSACTION_TYPE}'"
-        )
-    }
+    params = {"$filter": _window_filter("modifiedOn", start, end)}
     if row_version is not None:
         params["$filter"] += f" and rowVersion gt {row_version}L"
 

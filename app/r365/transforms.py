@@ -19,9 +19,10 @@ from typing import Any
 
 ItemRow = dict[str, Any]
 
-# Transaction types kept by the purchasing sync. The AP-invoice surface is
-# the documented purchasing source (Transaction + TransactionDetail); other
-# types (Budget templates, journal entries) are out of scope for cost data.
+# The AP-invoice type — the purchasing surface's transaction type. Header
+# ingestion mirrors every type (a detail line must always join to a header);
+# queries that want AP-only spend filter on R365Transaction.transaction_type
+# with this constant.
 PURCHASE_TRANSACTION_TYPE = "AP Invoice"
 
 # Detail rows that carry purchased goods vs GL-only pairings.
@@ -129,15 +130,27 @@ def parse_item(row: ItemRow) -> ItemRow:
 
 
 def parse_transaction(row: ItemRow) -> ItemRow:
-    """Transaction view row (invoice header) → R365Transaction attributes."""
+    """Transaction view row (any type) → R365Transaction attributes.
+
+    Non-AP types (Tips Payable, Credit Card Combined, …) leave vendor and
+    invoice-number fields null or absent — every non-key field parses to
+    None without error. Only identity is enforced: a row without a
+    transactionId or type has no mirror identity and would upsert garbage.
+    """
+    transaction_id = _to_uuid(row.get("transactionId"))
+    transaction_type = _to_str(row.get("type"))
+    if transaction_id is None:
+        raise ValueError(f"Transaction row without transactionId: {row!r}")
+    if transaction_type is None:
+        raise ValueError(f"Transaction row {transaction_id} without type")
     return {
-        "transaction_id": _to_uuid(row.get("transactionId")),
+        "transaction_id": transaction_id,
         "location_id": _to_uuid(row.get("locationId")),
         "location_name": _to_str(row.get("locationName")),
         "transaction_date": _to_date(row.get("date")),
         "transaction_number": _to_str(row.get("transactionNumber")),
         "name": _to_str(row.get("name")),
-        "transaction_type": _to_str(row.get("type")),
+        "transaction_type": transaction_type,
         "company_id": _to_uuid(row.get("companyId")),
         "row_version": _to_int(row.get("rowVersion")),
         "is_approved": bool(row.get("isApproved")),

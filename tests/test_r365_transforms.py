@@ -4,6 +4,8 @@ from datetime import UTC, date, datetime
 from decimal import Decimal
 from uuid import UUID
 
+import pytest
+
 from app.r365 import transforms as tx
 from tests.r365_payloads import (
     DICEY_LOCATION_ID,
@@ -15,6 +17,7 @@ from tests.r365_payloads import (
     item,
     item_detail,
     location,
+    non_ap_transaction,
     transaction,
 )
 
@@ -74,12 +77,32 @@ def test_transaction_row_from_probed_shape():
 
 
 def test_transaction_row_defaults_on_sparse_row():
-    row = tx.parse_transaction({"transactionId": TXN_ID})
+    row = tx.parse_transaction({"transactionId": TXN_ID, "type": "AP Invoice"})
     assert row["transaction_date"] is None
     assert row["is_approved"] is False  # bool(None)
     assert row["is_template"] is False
     assert row["row_version"] is None
     assert row["company_id"] is None
+
+
+def test_transaction_row_non_ap_shape_parses_to_nulls():
+    """Non-AP rows: absent vendor/number fields parse to None, no exception."""
+    row = tx.parse_transaction(non_ap_transaction())
+    assert row["transaction_id"] == UUID("bbbb2222-0000-4000-8000-000000000003")
+    assert row["transaction_type"] == "Tips Payable"
+    assert row["transaction_number"] is None
+    assert row["company_id"] is None
+    assert row["name"] is None
+    assert row["transaction_date"] == date(2026, 3, 15)
+
+
+def test_transaction_row_requires_identity_fields():
+    # transactionId and type are the mirror identity — a row without either
+    # cannot be upserted and must fail loudly, not silently.
+    with pytest.raises(ValueError, match="transactionId"):
+        tx.parse_transaction({"type": "AP Invoice"})
+    with pytest.raises(ValueError, match="without type"):
+        tx.parse_transaction({"transactionId": TXN_ID})
 
 
 def test_detail_row_item_kind_vs_gl_kind():

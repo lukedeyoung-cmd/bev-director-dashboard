@@ -13,6 +13,7 @@ VENDOR_1_ID = "aaaa1111-0000-4000-8000-000000000001"
 VENDOR_2_ID = "aaaa1111-0000-4000-8000-000000000002"
 TXN_ID = "bbbb2222-0000-4000-8000-000000000001"
 TXN2_ID = "bbbb2222-0000-4000-8000-000000000002"
+TXN3_ID = "bbbb2222-0000-4000-8000-000000000003"
 ITEM_KEG_ID = "cccc3333-0000-4000-8000-000000000001"
 ITEM_SPIRITS_ID = "cccc3333-0000-4000-8000-000000000002"
 
@@ -75,6 +76,31 @@ def transaction(txn_id=TXN_ID, date="2026-03-12", **overrides):
         "isTemplate": False,
         "createdOn": "2026-03-14T05:00:00.00Z",
         "modifiedOn": "2026-03-14T05:00:00.00Z",
+    }
+    payload.update(overrides)
+    return payload
+
+
+def non_ap_transaction(
+    txn_id=TXN3_ID, date="2026-03-15", txn_type="Tips Payable", **overrides
+):
+    """One non-AP header row: vendor and invoice-number fields absent.
+
+    Non-AP transaction types (Tips Payable, Credit Card Combined, ...) do
+    not carry vendor/number fields — headers ingest anyway so detail lines
+    always join to a dated, located, typed header.
+    """
+    payload = {
+        "transactionId": txn_id,
+        "locationId": DICEY_LOCATION_ID,
+        "locationName": "11.2 Dicey's West Town",
+        "date": date,
+        "type": txn_type,
+        "rowVersion": 142720,
+        "isApproved": True,
+        "isTemplate": False,
+        "createdOn": "2026-03-16T05:00:00.00Z",
+        "modifiedOn": "2026-03-16T05:00:00.00Z",
     }
     payload.update(overrides)
     return payload
