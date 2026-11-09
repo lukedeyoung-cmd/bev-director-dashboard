@@ -28,6 +28,7 @@ from app.r365.ingest import (
 from tests.r365_payloads import (
     DICEY_LOCATION_ID,
     ITEM_KEG_ID,
+    TXN3_ID,
     TXN_ID,
     VENDOR_1_ID,
     VENDOR_2_ID,
@@ -36,6 +37,7 @@ from tests.r365_payloads import (
     item,
     item_detail,
     location,
+    non_ap_transaction,
     transaction,
 )
 
@@ -173,15 +175,28 @@ def test_sync_transactions_month_creates_headers(app):
     assert txn.transaction_date == date(2026, 3, 12)
 
 
-def test_sync_transactions_month_filter(app):
+def test_sync_transactions_month_filter_pulls_all_types(app):
     stub = _month_stub()
     sync_transactions_month(stub, 2025, 11)
     entity, filter_ = stub.calls[0]
     assert entity == "Transaction"
-    assert filter_ == (
-        "date ge 2025-11-01T00:00:00Z and date le 2025-11-30T23:59:59Z "
-        "and type eq 'AP Invoice'"
-    )
+    # Every transaction type is mirrored — no type clause in the filter.
+    assert filter_ == "date ge 2025-11-01T00:00:00Z and date le 2025-11-30T23:59:59Z"
+
+
+def test_sync_transactions_month_upserts_non_ap_header_intact(app):
+    stub = StubR365Client({"Transaction": [transaction(), non_ap_transaction()]})
+    result = sync_transactions_month(stub, 2025, 11)
+    assert result.rows_created == 2
+
+    txn = db.session.get(R365Transaction, UUID(TXN3_ID))
+    assert txn is not None
+    assert txn.transaction_type == "Tips Payable"  # non-AP type preserved
+    assert txn.transaction_number is None  # vendor/number fields absent → NULL
+    assert txn.company_id is None
+    assert txn.name is None
+    assert txn.transaction_date == date(2026, 3, 15)
+    assert str(txn.location_id) == DICEY_LOCATION_ID
 
 
 def test_sync_transaction_details_window_creates_rows_and_links(app):
@@ -265,6 +280,31 @@ def test_backfill_history_force_repulls_completed_months(app):
     assert not any(o.failed_month for o in outcomes.values())
 
 
+def test_backfill_history_entities_scoped_header_only(app):
+    """force + entities=['R365Transaction'] re-pulls headers, skips details."""
+    stub = _month_stub()
+    backfill_history(stub, NOV_START, NOV_END)
+    detail_state_before = db.session.get(R365SyncState, "R365TransactionDetail")
+    assert detail_state_before is not None
+    assert detail_state_before.last_history_period == date(2025, 12, 31)
+
+    stub.calls.clear()
+    outcomes = backfill_history(
+        stub, NOV_START, NOV_END, force=True, entities=["R365Transaction"]
+    )
+    # Detail entity never ran: no API calls and no outcome row.
+    assert not any(e == "TransactionDetail" for e, _ in stub.calls)
+    assert set(outcomes) == {"R365Transaction"}
+    assert not any(o.failed_month for o in outcomes.values())
+    # Detail sync state untouched.
+    detail_state_after = db.session.get(R365SyncState, "R365TransactionDetail")
+    assert detail_state_after.last_history_period == date(2025, 12, 31)
+    # Headers were actually re-pulled for both months.
+    header_filters = [f for e, f in stub.calls if e == "Transaction"]
+    assert any("date ge 2025-11-01T00:00:00Z" in f for f in header_filters)
+    assert any("date ge 2025-12-01T00:00:00Z" in f for f in header_filters)
+
+
 def test_backfill_history_stops_at_failed_month(app):
     class FlakyDetail(StubR365Client):
         def iter_rows(self, entity, *, params=None, page_size=None):
@@ -299,6 +339,28 @@ def test_sync_incremental_checkpoints_row_version(app):
     state = db.session.get(R365SyncState, "R365TransactionDetail")
     assert state.max_row_version == 142716  # max across synced detail rows
     assert as_aware(state.last_sync_at) == INCREMENTAL_NOW
+
+
+def test_sync_incremental_pulls_non_ap_headers_and_advances_checkpoint(app):
+    stub = StubR365Client(
+        {
+            "Transaction": [transaction(), non_ap_transaction()],
+            "TransactionDetail": [item_detail(), gl_detail()],
+        }
+    )
+    results = sync_incremental(stub, since_days=3, now=INCREMENTAL_NOW)
+    assert results["R365Transaction"].rows_created == 2  # AP + non-AP header
+
+    # No type clause: the incremental pull mirrors every transaction type.
+    filters = {e: f for e, f in stub.calls}
+    assert "type eq" not in filters["Transaction"]
+
+    # Checkpoint advanced to the max row version across all header types.
+    state = db.session.get(R365SyncState, "R365Transaction")
+    assert state.max_row_version == 142720
+    non_ap = db.session.get(R365Transaction, UUID(TXN3_ID))
+    assert non_ap is not None
+    assert non_ap.transaction_type == "Tips Payable"
 
 
 def test_sync_incremental_uses_row_version_checkpoint(app):
